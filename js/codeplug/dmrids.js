@@ -20,6 +20,8 @@ const CODE = new Map([...DECOMPRESS].map((c, i) => [c, i]));
 
 // The list downloaded: what the OpenGD77 CPS downloads by default; GitHub lets any page read it (radioid.net does not:
 // its user.csv is opened as a file)
+import {COUNTRY_OF_CODE} from './countries.js';
+
 export const SOURCES = {
     contactLists: 'https://raw.githubusercontent.com/ContactLists/NORMAL-ContactLists/master/RADIODDITY/GD77/GD77_WW_default.csv',
 };
@@ -63,7 +65,8 @@ function csvFields(line) {
 
 // The entries of a CSV: radioid.net's (RADIO_ID, CALLSIGN, FIRST_NAME, LAST_NAME, CITY, STATE, COUNTRY) or the
 // ContactLists one (Radio ID, Callsign, Name, Nickname, City, State, Country, Remarks). Throws when it has no ID or
-// callsign column
+// callsign column. given: the first name (RadioID's FIRST_NAME; ContactLists' Name without its last word), country:
+// RadioID's name for it (ContactLists gives an ISO 3166 code)
 export function parseCsv(text) {
     const lines = text.split(/\r?\n/);
     const head = csvFields(lines[0] ?? '').map((h) => h.toLowerCase().replace(/[\s_]+/g, ''));
@@ -92,13 +95,17 @@ export function parseCsv(text) {
             continue;
         }
         const name = (c.name >= 0) ? f[c.name] : [f[c.first] ?? '', f[c.last] ?? ''].join(' ').trim();
+        const words = (name ?? '').split(/\s+/).filter((w) => w);
+        const given = (c.first >= 0) ? (f[c.first] ?? '') : words.slice(0, Math.max(1, words.length - 1)).join(' ');
+        const country = (c.country >= 0) ? (f[c.country] ?? '') : '';
         entries.push({
             id,
             callsign: f[c.callsign] ?? '',
             name: name ?? '',
+            given,
             city: (c.city >= 0) ? f[c.city] : '',
             state: (c.state >= 0) ? f[c.state] : '',
-            country: (c.country >= 0) ? f[c.country] : '',
+            country: COUNTRY_OF_CODE[country] ?? country,
         });
     }
     return entries;

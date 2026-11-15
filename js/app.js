@@ -10,6 +10,7 @@ import {language} from './i18n.js';
 import {VERSION} from './version.js';
 import * as SAT from './codeplug/satellites.js';
 import * as DMR from './codeplug/dmrids.js';
+import * as ODDB from './codeplug/oddb.js';
 import * as gb from './gb2312.js';
 
 const FILE_MAGIC = 'OPENDMR-CPS 1\n'; // our codeplug file: this line, then the window image (layout.js IMAGE_SIZE)
@@ -748,10 +749,14 @@ function viewGeneral(main) {
 
 /* ---- the DMR ID database (not in the codeplug: written to the radio on its own) ---- */
 
-const ID_WRITE_SPEED = 9000; // bytes a second over the cable (measured: 300 KB in 32 s)
+const ID_WRITE_SPEED = 9000;   // the old format: bytes a second over the cable (measured: 300 KB in 32 s)
+const ODDB_WRITE_SPEED = 18000; // ours, at 750000 baud (measured with id_db.py: 3.5 MB in about 3 minutes)
 let dmrDb = null; // the ID list loaded: {entries, source}
+// prefixes: the IDs kept; textLength / withCity: the OpenGD77 format for a firmware before 0.4.0, its CPS's defaults
+// (not shown: our format has neither)
 const dmrIdOptions = {textLength: DMR.DEFAULT_TEXT_LENGTH, withCity: false, prefixes: ''};
 let dmrIdBusy = false;
+let oddbCache = null; // {key, db, error}: our database of the list and prefixes (built in a few seconds)
 
 // The text of a response, the progress bar following its length
 async function fetchText(url) {
@@ -790,6 +795,7 @@ async function loadDmrIds(source, file) {
             throw new Error(t('idBadCsv'));
         }
         dmrDb = {entries, source: file ? file.name : 'ContactLists'};
+        oddbCache = null;
         status(`${t('idLoaded')} ${entries.length} ${t('idEntries')}`);
     } catch (e) {
         toast(`${t('error')}: ${e.message}`, 10000);
@@ -800,44 +806,135 @@ async function loadDmrIds(source, file) {
     render();
 }
 
+function dmrIdPrefixes() {
+    return dmrIdOptions.prefixes.split(/[\s,;]+/).filter((p) => /^\d+$/.test(p));
+}
+
+// Our database of the list (firmware 0.4.0 and later): built once for the list and the prefixes
+function oddbPlan() {
+    if (!dmrDb) {
+        return null;
+    }
+    const prefixes = dmrIdPrefixes();
+    const key = prefixes.join(' ');
+    if (oddbCache?.key !== key || oddbCache.list !== dmrDb) {
+        const entries = prefixes.length
+            ? dmrDb.entries.filter((e) => prefixes.some((p) => String(e.id).startsWith(p))) : dmrDb.entries;
+        const rows = ODDB.records(entries);
+        oddbCache = {key, list: dmrDb, rows, db: null, error: null};
+        try {
+            oddbCache.db = rows.length ? ODDB.build(rows) : null;
+        } catch (e) {
+            oddbCache.error = e.message;
+        }
+    }
+    return oddbCache;
+}
+
+// The old format (OpenGD77's, for a firmware before 0.4.0)
 function dmrIdPlan() {
     const o = dmrIdOptions;
-    const prefixes = o.prefixes.split(/[\s,;]+/).filter((p) => /^\d+$/.test(p));
-    const chosen = dmrDb ? DMR.select(dmrDb.entries, prefixes) : [];
+    const chosen = dmrDb ? DMR.select(dmrDb.entries, dmrIdPrefixes()) : [];
     const cap = DMR.capacity(o.textLength);
     const count = Math.min(chosen.length, cap);
     const bytes = DMR.HEADER + (count * DMR.recordLength(o.textLength));
     return {chosen, cap, count, bytes, minutes: Math.max(1, Math.round(bytes / ID_WRITE_SPEED / 60))};
 }
 
-async function writeDmrIds() {
+const oddbMinutes = (db) => Math.max(1, Math.round((db.body.length + db.header.length) / ODDB_WRITE_SPEED / 60));
+
+// Ours: the radio's CRC of each sector first, only the changed ones written; the header blanked first and written
+// last, so the radio never reads half of it
+async function writeOddb(db) {
+    const sectors = ODDB.sectors(db);
+    const header = sectors.pop();
+    status(t('idSpeed'));
+    const baud = await link.speedUp(ODDB.HEADER_AT);
+    status(`${t('idComparing')} (${baud} baud)`);
+    const changed = [];
+    for (let i = 0; i < sectors.length; i++) {
+        const s = sectors[i];
+        if ((await link.sectorCrc(s.sector * ODDB.SECTOR)) !== ODDB.crc32(s.data)) {
+            changed.push(s);
+        }
+        progress(i + 1, sectors.length);
+    }
+    const headerSame = (await link.sectorCrc(ODDB.HEADER_AT)) === ODDB.crc32(header.data);
+    if (changed.length || !headerSame) {
+        const all = changed.length + 2;
+        const put = async (s, n) => {
+            await link.writeSector(s.sector, s.data);
+            if ((await link.sectorCrc(s.sector * ODDB.SECTOR)) !== ODDB.crc32(s.data)) {
+                throw new Error(`sector 0x${(s.sector * ODDB.SECTOR).toString(16)}: read back different`);
+            }
+            progress(n, all);
+            status(`${t('idWriting')} ${Math.floor(100 * n / all)}%`);
+        };
+        await put({sector: header.sector, data: new Uint8Array(ODDB.SECTOR).fill(0xFF)}, 1); // no database meanwhile
+        for (let i = 0; i < changed.length; i++) {
+            await put(changed[i], i + 2);
+        }
+        await put(header, all);
+    }
+    await link.closeScreen();
+    return changed.length;
+}
+
+async function writeOldFormat(plan) {
     const o = dmrIdOptions;
-    const plan = dmrIdPlan();
-    if (!link?.connected || !plan.count || dmrIdBusy) {
-        return;
-    }
-    if (!window.confirm(t('idWriteConfirm').replace('{n}', plan.count).replace('{m}', plan.minutes))) {
-        return;
-    }
     const db = DMR.build(plan.chosen, o.textLength, o.withCity);
+    for (let i = 0; i < db.sectors.length; i++) {
+        await link.writeSector(db.sectors[i].sector, db.sectors[i].data);
+        progress(i + 1, db.sectors.length);
+        status(`${t('idWriting')} ${Math.floor(100 * (i + 1) / db.sectors.length)}%`);
+    }
+    await link.closeScreen();
+    return db.count;
+}
+
+async function writeDmrIds() {
+    if (!link?.connected || !dmrDb || dmrIdBusy) {
+        return;
+    }
     dmrIdBusy = true;
     $('btnRead').disabled = true;
     $('btnWrite').disabled = true;
     render();
     try {
-        for (let i = 0; i < db.sectors.length; i++) {
-            await link.writeSector(db.sectors[i].sector, db.sectors[i].data);
-            progress(i + 1, db.sectors.length);
-            status(`${t('idWriting')} ${Math.floor(100 * (i + 1) / db.sectors.length)}%`);
+        // the firmware: 0.4.0 and later answer 'D' 'K' and read our database
+        const ours = (await link.sectorCrc(ODDB.HEADER_AT)) !== null;
+        if (ours) {
+            const plan = oddbPlan();
+            if (!plan?.db) {
+                throw new Error(plan?.error ?? t('idNone'));
+            }
+            if (!window.confirm(t('idWriteConfirmNew').replace('{n}', plan.db.records).replace('{m}', oddbMinutes(plan.db)))) {
+                return;
+            }
+            const written = await writeOddb(plan.db);
+            status(`${t('idWritten')}: ${plan.db.records} ${t('idEntries')} (${written} ${t('idSectorsChanged')})`);
+        } else {
+            const plan = dmrIdPlan();
+            if (!plan.count) {
+                return;
+            }
+            if (!window.confirm(t('idWriteConfirmOld').replace('{n}', plan.count).replace('{m}', plan.minutes))) {
+                return;
+            }
+            const count = await writeOldFormat(plan);
+            status(`${t('idWritten')}: ${count} ${t('idEntries')}`);
         }
-        await link.closeScreen();
-        status(`${t('idWritten')}: ${db.count} ${t('idEntries')}`);
         toast(t('idWritten'));
     } catch (e) {
         toast(t('error') + ': ' + e.message, 6000);
         status(t('error'));
     } finally {
         progress(0, 0);
+        try {
+            await link.speedDown(); // the radio is back at 115200 by itself after 5 s of quiet
+        } catch (e) {
+            // the port went away
+        }
         dmrIdBusy = false;
         setConnected(!!link?.connected); // the buttons back, the page redrawn
     }
@@ -845,24 +942,24 @@ async function writeDmrIds() {
 
 function viewDmrIds(main) {
     const o = dmrIdOptions;
-    const plan = dmrIdPlan();
+    const old = dmrIdPlan();
+    const plan = oddbPlan();
+    const db = plan?.db;
     const fileInput = el('input', {type: 'file', accept: '.csv,text/csv', hidden: true});
     fileInput.addEventListener('change', () => {
         if (fileInput.files[0]) {
             loadDmrIds(null, fileInput.files[0]);
         }
     });
-    const shown = (e) => DMR.radioText(DMR.entryText(e, o.withCity), o.textLength);
-    const mine = plan.chosen.find((e) => e.id === codeplug.general.dmrId);
-    const samples = [...(mine ? [mine] : []), ...plan.chosen.filter((e) => e !== mine).slice(0, mine ? 4 : 5)];
+    // as the radio shows a caller: the callsign, the name, the city and state, the country
+    const shown = (r) => [r[1], r[2], [r[3], r[4]].filter((s) => s).join(', '), r[5]].filter((s) => s).join(' · ');
+    const rows = plan?.rows ?? [];
+    const mine = rows.find((r) => r[0] === codeplug.general.dmrId);
+    const samples = [...(mine ? [mine] : []), ...rows.filter((r) => r !== mine).slice(0, mine ? 4 : 5)];
     const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
     const prefixInput = el('input', {value: o.prefixes, placeholder: '302 310', spellcheck: false});
     prefixInput.addEventListener('change', () => {
         o.prefixes = prefixInput.value.trim();
-        render();
-    });
-    const lengthSelect = select(DMR.TEXT_LENGTHS.map((n) => [n, String(n)]), o.textLength, (v) => {
-        o.textLength = Number(v);
         render();
     });
     main.append(pageHead(t('dmrIds')),
@@ -878,30 +975,24 @@ function viewDmrIds(main) {
                     : t('idNone'))),
             el('div', {class: 'card form-card'},
                 el('h3', {class: 'card-title'}, t('idOptions')),
-                el('div', {class: 'fields'},
-                    field(t('idTextLength'), lengthSelect),
-                    field(t('idPrefixes'), prefixInput)),
-                el('p', {class: 'muted id-hint'}, t('idPrefixHint')),
-                check(t('idWithCity'), o.withCity, (v) => {
-                    o.withCity = v;
-                    render();
-                })),
+                el('div', {class: 'fields'}, field(t('idPrefixes'), prefixInput)),
+                el('p', {class: 'muted id-hint'}, t('idPrefixHint'))),
             el('div', {class: 'card form-card'},
                 el('h3', {class: 'card-title'}, t('idSummary')),
                 dmrDb ? el('dl', {class: 'info'},
-                    el('dt', {}, t('idSelected')), el('dd', {}, plan.chosen.length),
-                    el('dt', {}, t('idCapacity')), el('dd', {}, plan.cap),
-                    el('dt', {}, t('idSize')), el('dd', {}, mb(plan.bytes)),
-                    el('dt', {}, t('idTime')), el('dd', {}, plan.count ? t('idMinutes').replace('{m}', plan.minutes) : '–'))
+                    el('dt', {}, t('idSelected')), el('dd', {}, db ? db.records : '–'),
+                    el('dt', {}, t('idCountries')), el('dd', {}, db ? db.countries : '–'),
+                    el('dt', {}, t('idSize')), el('dd', {}, db ? mb(db.body.length + db.header.length) : '–'),
+                    el('dt', {}, t('idTime')), el('dd', {}, db ? t('idMinutesNew').replace('{m}', oddbMinutes(db)) : '–'))
                     : el('p', {class: 'id-next'}, t('idNoListYet')),
-                (plan.chosen.length > plan.cap) ? el('p', {class: 'id-warn'}, t('idTooMany')) : null,
+                plan?.error ? el('p', {class: 'id-warn'}, `${plan.error} ${t('idFewerCountries')}`) : null,
                 samples.length ? el('div', {class: 'id-preview'},
                     el('div', {class: 'muted'}, t('idPreview')),
-                    samples.map((e) => el('div', {class: 'id-sample'}, el('span', {class: 'dim'}, e.id), ' ', shown(e))))
+                    samples.map((r) => el('div', {class: 'id-sample'}, el('span', {class: 'dim'}, r[0]), ' ', shown(r))))
                     : null,
                 el('div', {class: 'id-write'},
                     // no list yet: the button downloads ContactLists first
-                    el('button', {class: 'primary', disabled: !link?.connected || dmrIdBusy || (dmrDb && !plan.count),
+                    el('button', {class: 'primary', disabled: !link?.connected || dmrIdBusy || (dmrDb && !db && !old.count),
                         onclick: async () => {
                             if (!dmrDb) {
                                 await loadDmrIds('contactLists');

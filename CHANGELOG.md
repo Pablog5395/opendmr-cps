@@ -1,5 +1,18 @@
 # Changelog / 版本记录
 
+## 0.6.0 (2026-11-15)
+
+- DMR IDs in OpenDMR's own format (firmware 0.4.0 and later): callsign, name, city, state and country of every ID,
+  RadioID's whole list in about 3.5 MB (the same bytes as the firmware's tools/ids/id_db.py). From ContactLists the
+  first name is kept and the country code becomes its name. The cable goes up to 750000 baud while it writes, each
+  sector's CRC is compared first and only the changed ones are written: about 3 minutes the first time, some seconds
+  when little changed. A radio with an older firmware still gets the OpenGD77 format (16 characters, its CPS's
+  defaults); the characters and city options are gone from the page.
+  DMR ID 数据库改用 OpenDMR 自己的格式（固件 0.4.0 及以后）：每个 ID 的呼号、名字、城市、州/省和国家，RadioID 的全部名单约
+  3.5 MB（和固件的 tools/ids/id_db.py 生成的完全相同）。ContactLists 的名字只留名，国家代码换成国家名。写入时写频线提速到
+  750000 波特，先比较每个扇区的 CRC，只写变了的：第一次约 3 分钟，变动少时几秒钟。旧固件的电台仍写 OpenGD77 格式（每条 16 个
+  字符，和它的 CPS 默认一样）；页面上不再有字符数和城市选项。
+
 ## 0.5.0 (2026-11-13)
 
 - DMR IDs: the radio shows a DMR caller's callsign and name from this database. Download the list the OpenGD77 CPS

@@ -11,7 +11,8 @@ Current version **0.4.0** ([changelog](CHANGELOG.md)).
 - The radio's menu settings (general, radio, display, sound, APRS); power 50 mW – 10 W, each channel and VFO its own
 - Amateur satellites: tick one to put it in the radio; orbits fetched by themselves (AMSAT / CelesTrak)
 - DMR ID database: downloaded (ContactLists) or from a CSV (radioid.net's user.csv, for one), by country; the radio
-  then shows callers' callsigns and names
+  then shows callers' callsigns, names, cities, states and countries (OpenDMR 0.4.0 and later; all the IDs fit, only
+  what changed is written)
 - Names written in GB2312, so Chinese names show on the radio
 - Reads and writes the radio over the programming cable; a write changes only what was edited, the radio's other
   settings stay as they are
