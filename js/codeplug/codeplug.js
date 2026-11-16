@@ -37,6 +37,12 @@ export function frequencyValid(hz) {
     return BANDS.some(([lo, hi]) => (hz >= lo) && (hz <= hi));
 }
 
+// VFO frequencies locked out of the scans for good (OpenDMR app/scan.c, a custom data block "DT" 5): the count, then
+// up to 32 frequencies in 10 Hz units, little endian
+export const LOCKOUT_BLOCK_TYPE = 0x44540005;
+export const LOCKOUTS_MAX = 32;
+const LOCKOUT_BLOCK_LENGTH = 4 + (4 * LOCKOUTS_MAX);
+
 // Channel flags (OpenDMR app/channel_details.c)
 const FLAG1_OPTIONAL_DMR_ID = 0x80; // libre_dmr_flag1 (byte 38)
 const FLAG1_NO_BEEP = 0x40;
@@ -120,6 +126,15 @@ export class Codeplug {
         this.satellites = (satBlock && satBlock.length === SAT.BLOCK_LENGTH) ?
             SAT.parseBlock(img.subarray(satBlock.data, satBlock.data + satBlock.length)) : [];
         this.satellitesDirty = false;
+        const lockBlock = this.findCustomBlock(LOCKOUT_BLOCK_TYPE);
+        this.lockouts = []; // VFO frequencies (Hz) locked out of the scans
+        if (lockBlock && lockBlock.length === LOCKOUT_BLOCK_LENGTH) {
+            const n = Math.min(u32(img, lockBlock.data), LOCKOUTS_MAX);
+            for (let i = 0; i < n; i++) {
+                this.lockouts.push(u32(img, lockBlock.data + 4 + (4 * i)) * 10);
+            }
+        }
+        this.lockoutsDirty = false;
         this.customRanges = []; // the custom data bytes store() changed
         this.channelsPerZone = (img[L.ZONE_FORMAT_CHECK + 15] <= 0x04) ? 80 : 16;
         this.general = {
@@ -345,7 +360,8 @@ export class Codeplug {
         return null;
     }
 
-    storeSatellites() {
+    // A custom data block written: the same block, or a new one in the first free place (custom_data.c)
+    storeCustomBlock(type, bytes, what) {
         const img = this.img;
         if (new TextDecoder().decode(img.subarray(L.CUSTOM_DATA, L.CUSTOM_DATA + 8)) !== 'OpenGD77') {
             // no codeplug written yet: the header, and the blocks from an empty area
@@ -354,19 +370,31 @@ export class Codeplug {
             fill(img, L.CUSTOM_DATA + 12, 8, 0xFF);
             this.customRanges.push([L.CUSTOM_DATA, L.CUSTOM_DATA + 12]);
         }
-        let block = this.findCustomBlock(SAT.BLOCK_TYPE) ?? this.findCustomBlock(0xFFFFFFFF);
+        const block = this.findCustomBlock(type) ?? this.findCustomBlock(0xFFFFFFFF);
         if (!block) {
-            throw new Error('no room for the satellites in the custom data');
+            throw new Error(`no room for the ${what} in the custom data`);
         }
-        if (block.length !== SAT.BLOCK_LENGTH) { // a new block in the first free place
-            if (block.data + SAT.BLOCK_LENGTH >= L.CUSTOM_DATA_END) {
-                throw new Error('no room for the satellites in the custom data');
+        if (block.length !== bytes.length) { // a new block in the first free place
+            if (block.data + bytes.length >= L.CUSTOM_DATA_END) {
+                throw new Error(`no room for the ${what} in the custom data`);
             }
-            setU32(img, block.at, SAT.BLOCK_TYPE);
-            setU32(img, block.at + 4, SAT.BLOCK_LENGTH);
+            setU32(img, block.at, type);
+            setU32(img, block.at + 4, bytes.length);
         }
-        img.set(SAT.buildBlock(this.satellites), block.data);
-        this.customRanges.push([block.at, block.data + SAT.BLOCK_LENGTH]);
+        img.set(bytes, block.data);
+        this.customRanges.push([block.at, block.data + bytes.length]);
+    }
+
+    storeSatellites() {
+        this.storeCustomBlock(SAT.BLOCK_TYPE, SAT.buildBlock(this.satellites), 'satellites');
+    }
+
+    storeLockouts() {
+        const bytes = new Uint8Array(LOCKOUT_BLOCK_LENGTH);
+        const list = this.lockouts.slice(0, LOCKOUTS_MAX);
+        setU32(bytes, 0, list.length);
+        list.forEach((hz, i) => setU32(bytes, 4 + (4 * i), Math.round(hz / 10)));
+        this.storeCustomBlock(LOCKOUT_BLOCK_TYPE, bytes, 'scan lockouts');
     }
 
     // The records back into the image
@@ -375,6 +403,9 @@ export class Codeplug {
         this.customRanges = [];
         if (this.satellitesDirty) {
             this.storeSatellites();
+        }
+        if (this.lockoutsDirty) {
+            this.storeLockouts();
         }
         writeName(img, L.CALLSIGN, 8, this.general.callsign.toUpperCase());
         writeBcdBigEndian(img, L.DMR_ID, this.general.dmrId);

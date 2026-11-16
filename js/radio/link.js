@@ -12,6 +12,7 @@
 //                                               without a request
 
 import {SECTOR, IGNORED_SECTORS} from '../codeplug/layout.js';
+import {crc32} from '../codeplug/oddb.js';
 
 const BAUD = 115200;
 const READ_CHUNK = 1024;  // the radio answers up to 1533 bytes a read
@@ -19,7 +20,7 @@ const WRITE_CHUNK = 1024; // and takes up to 1528 bytes a write
 const TIMEOUT_MS = 2000;
 const UART_CLOCK = 84000000 / 16;      // the radio's UART: baud = UART_CLOCK / divisor
 const SPEED_DIVISORS = [7, 14, 21];    // 750000, 375000, 250000 baud (12 MHz / n for a CH340 too)
-const SPEED_BACK_MS = 2500;            // an unconfirmed speed: the radio is back at 115200 after 2 s
+const SPEED_BACK_MS = 500;             // an unconfirmed speed: the radio is back at 115200 after 0.4 s
 const QUIET_BACK_MS = 5500;            // and after 5 s without a request
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const AREA_FLASH = 1;
@@ -156,7 +157,76 @@ export class RadioLink {
     }
 
     // Window bytes [start, end) into img; progress(done, total)
+    // length bytes at address packed by the radio ('D' 'Z', firmware 0.4.0: runs of a byte sent as one), unpacked;
+    // null: it did not fit the reply (fewer bytes then); throws 'refused' for a firmware without it
+    async readPacked(address, length) {
+        for (let attempt = 0; ; attempt++) {
+            try {
+                return await this.readPackedOnce(address, length);
+            } catch (e) {
+                if (e.message === 'refused' || attempt >= 2) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    async readPackedOnce(address, length) {
+        await this.send([0x44, 0x5A, (address >>> 24) & 0xFF, (address >>> 16) & 0xFF, (address >>> 8) & 0xFF,
+            address & 0xFF, (length >> 8) & 0xFF, length & 0xFF]);
+        const head = await this.receive(5);
+        if (head[0] !== 0x44 || head[1] !== 0x5A) {
+            throw new Error('bad reply');
+        }
+        const n = (head[3] << 8) | head[4];
+        const packed = n ? await this.receive(n, false) : new Uint8Array(0);
+        if (head[2] !== 1) {
+            return null;
+        }
+        const out = new Uint8Array(length);
+        let o = 0;
+        for (let i = 0; (i < packed.length) && (o < length);) {
+            const c = packed[i++];
+            if (c < 0x80) {
+                out.set(packed.subarray(i, i + c + 1), o);
+                o += c + 1;
+                i += c + 1;
+            } else {
+                out.fill(packed[i++], o, o + c - 0x80 + 3);
+                o += c - 0x80 + 3;
+            }
+        }
+        if (o !== length) {
+            throw new Error('bad packed data');
+        }
+        return out;
+    }
+
+    // Window bytes [start, end) into img, packed sector by sector when the radio can (then 1 KB at a time where a
+    // sector does not pack small enough), else as they are; progress(done, total)
     async readRegion(img, start, end, progress, doneBefore, total) {
+        if (this.packs !== false && (start % SECTOR) === 0 && (end % SECTOR) === 0) {
+            try {
+                for (let at = start; at < end; at += SECTOR) {
+                    let data = await this.readPacked(at, SECTOR);
+                    if (!data) {
+                        data = new Uint8Array(SECTOR);
+                        for (let k = 0; k < SECTOR; k += READ_CHUNK) {
+                            data.set((await this.readPacked(at + k, READ_CHUNK)) ?? await this.read(AREA_FLASH, at + k, READ_CHUNK), k);
+                        }
+                    }
+                    img.set(data, at);
+                    progress?.(doneBefore + (at + SECTOR - start), total);
+                }
+                this.packs = true;
+                return;
+            } catch (e) {
+                if (e.message !== 'refused' || this.packs === true) {
+                    throw e;
+                }
+                this.packs = false; // a firmware before 0.4.0: as they are
+            }
+        }
         for (let at = start; at < end; at += READ_CHUNK) {
             const n = Math.min(READ_CHUNK, end - at);
             let data;
@@ -227,9 +297,19 @@ export class RadioLink {
         return null;
     }
 
-    // The fastest speed both ends keep ('D' 'S', confirmed by 'D' 'Y' and four CRCs of probe); 115200 when none
-    async speedUp(probe) {
-        for (const divisor of SPEED_DIVISORS) {
+    // The fastest speed both ends keep ('D' 'S', confirmed by 'D' 'Y' and four CRCs of probe); 115200 when none.
+    // reads: the sector at probe read too and checked with its CRC (a CH340 loses bytes to the PC at 375000 and up,
+    // while short replies and writes to the radio still pass)
+    async speedUp(probe, reads = false) {
+        // the speed this kind of cable kept last time (its USB ids): the faster ones that failed not tried again
+        const key = this.cableKey(reads);
+        let known = null;
+        try {
+            known = Number(localStorage.getItem(key)) || null;
+        } catch (e) {
+            known = null;
+        }
+        for (const divisor of SPEED_DIVISORS.filter((d) => (known === null) || (d >= known))) {
             const baud = Math.floor(UART_CLOCK / divisor);
             try {
                 await this.send([0x44, 0x53, divisor >> 8, divisor & 0xFF]);
@@ -242,33 +322,89 @@ export class RadioLink {
             }
             await sleep(20);
             await this.reopen(baud);
-            await sleep(300);
+            await sleep(50);
             let ok = false;
             try {
                 await this.send([0x44, 0x59]);
-                const r = await this.receive(2, true, 500);
+                const r = await this.receive(2, true, 300);
                 ok = (r[0] === 0x44 && r[1] === 0x59);
             } catch (e) {
                 ok = false;
             }
+            const confirmed = ok;
             for (let i = 0; ok && i < 4; i++) {
                 ok = (await this.sectorCrc(probe, 1)) !== null;
             }
+            if (ok && reads) {
+                ok = await this.readsWell(probe);
+            }
             if (ok) {
+                try {
+                    localStorage.setItem(key, String(divisor));
+                } catch (e) {
+                    // not kept: tried again next time
+                }
                 return baud;
             }
-            await this.reopen(BAUD);
-            await sleep(SPEED_BACK_MS);
+            if (confirmed) {
+                await this.speedDown(); // it keeps a confirmed speed: asked back
+            } else {
+                await this.reopen(BAUD); // the radio goes back by itself: after 0.4 s (a firmware before: 2 s)
+                for (const wait of [SPEED_BACK_MS, 2000]) {
+                    await sleep(wait);
+                    if ((await this.sectorCrc(probe, 1)) !== null) {
+                        break;
+                    }
+                }
+            }
         }
         return BAUD;
     }
 
-    // Back to 115200: the radio goes back by itself after 5 s without a request
-    async speedDown() {
-        if (this.baud !== BAUD) {
-            await this.reopen(BAUD);
-            await sleep(QUIET_BACK_MS);
+    // The kind of cable (USB vendor and product), and whether reads were checked: the key of its kept speed
+    cableKey(reads) {
+        const info = this.port?.getInfo?.() ?? {};
+        return `opendmr-speed-${info.usbVendorId ?? 'x'}-${info.usbProductId ?? 'x'}${reads ? '-reads' : ''}`;
+    }
+
+    // A sector read whole at this speed, the same as the radio's CRC of it
+    async readsWell(address) {
+        try {
+            const data = new Uint8Array(SECTOR);
+            for (let at = 0; at < SECTOR; at += READ_CHUNK) {
+                data.set(await this.read(AREA_FLASH, address + at, READ_CHUNK), at);
+            }
+            return crc32(data) === (await this.sectorCrc(address, 1));
+        } catch (e) {
+            return false;
         }
+    }
+
+    // Back to 115200: asked for ('D' 'S' with its divisor, confirmed at it); else the radio goes back by itself after 5 s
+    // without a request
+    async speedDown() {
+        if (this.baud === BAUD) {
+            return;
+        }
+        const divisor = Math.round(UART_CLOCK / BAUD);
+        try {
+            await this.send([0x44, 0x53, divisor >> 8, divisor & 0xFF]);
+            const r = await this.receive(3, true, 500);
+            if (r[0] === 0x44 && r[1] === 0x53 && r[2] === 1) {
+                await sleep(20);
+                await this.reopen(BAUD);
+                await sleep(50);
+                await this.send([0x44, 0x59]);
+                const y = await this.receive(2, true, 500);
+                if (y[0] === 0x44 && y[1] === 0x59) {
+                    return;
+                }
+            }
+        } catch (e) {
+            // not answered: waited for below
+        }
+        await this.reopen(BAUD);
+        await sleep(QUIET_BACK_MS);
     }
 
     async command(...bytes) {

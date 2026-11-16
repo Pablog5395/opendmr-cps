@@ -2,7 +2,7 @@
 
 import {t, applyTexts, toggleLanguage} from './i18n.js';
 import {icon, applyIcons} from './icons.js';
-import {Codeplug, MODES, P25_NAC_ANY, CALL_TYPES, POWER_LEVELS, STEPS_HZ, toneChoices, frequencyValid} from './codeplug/codeplug.js';
+import {Codeplug, MODES, P25_NAC_ANY, CALL_TYPES, POWER_LEVELS, STEPS_HZ, toneChoices, frequencyValid, LOCKOUTS_MAX} from './codeplug/codeplug.js';
 import * as L from './codeplug/layout.js';
 import {RadioLink} from './radio/link.js';
 import {GROUPS, SETTINGS, SETTINGS_SIZE} from './codeplug/settings.js';
@@ -17,6 +17,7 @@ const FILE_MAGIC = 'OPENDMR-CPS 1\n'; // our codeplug file: this line, then the 
 
 let codeplug = new Codeplug();
 let link = null;
+let radioImage = null; // the image as last read from the radio (or written to it): sectors with its CRC need no read
 let tab = 'channels';
 let selectedChannel = null; // the channel being edited
 let selectedVfo = 0;
@@ -159,6 +160,7 @@ function counts() {
     $('countContacts').textContent = codeplug.contacts.length || '';
     $('countRxGroups').textContent = codeplug.rxGroups.length || '';
     $('countSatellites').textContent = codeplug.satellites.length || '';
+    $('countLockouts').textContent = (codeplug.lockouts.length + lockedChannels().length) || '';
 }
 
 function render() {
@@ -167,7 +169,8 @@ function render() {
     const main = $('content');
     main.replaceChildren();
     ({channels: viewChannels, zones: viewZones, contacts: viewContacts, rxGroups: viewRxGroups, vfo: viewVfo,
-        general: viewGeneral, radioSettings: viewRadioSettings, satellites: viewSatellites, dmrIds: viewDmrIds})[tab](main);
+        general: viewGeneral, radioSettings: viewRadioSettings, satellites: viewSatellites, dmrIds: viewDmrIds,
+        lockouts: viewLockouts})[tab](main);
 }
 
 function pageHead(title, ...rest) {
@@ -1075,6 +1078,68 @@ function viewRadioSettings(main) {
     refresh();
 }
 
+/* ---- scan lockouts (OpenDMR: * held on a scan, the quick menu's Scan lockout, the main menu's list) ---- */
+
+function lockedChannels() {
+    return codeplug.channels.filter((ch) => ch.zoneSkip || ch.allSkip);
+}
+
+function viewLockouts(main) {
+    const input = el('input', {placeholder: '144.10000', spellcheck: false, class: 'lockout-input'});
+    const add = () => {
+        const hz = parseMhz(input.value);
+        if (hz === null) {
+            toast(t('lockoutBadFrequency'));
+            return;
+        }
+        if (codeplug.lockouts.includes(hz)) {
+            toast(t('lockoutAlready'));
+            return;
+        }
+        if (codeplug.lockouts.length >= LOCKOUTS_MAX) {
+            toast(t('lockoutFull').replace('{n}', LOCKOUTS_MAX));
+            return;
+        }
+        codeplug.lockouts.push(hz);
+        codeplug.lockouts.sort((a, b) => a - b);
+        codeplug.lockoutsDirty = true;
+        render();
+    };
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            add();
+        }
+    });
+    const freqRows = codeplug.lockouts.map((hz) => el('div', {class: 'lockout-row'},
+        el('span', {class: 'lockout-freq'}, mhz(hz) + ' MHz'),
+        button(t('unlock'), 'x', () => {
+            codeplug.lockouts = codeplug.lockouts.filter((f) => f !== hz);
+            codeplug.lockoutsDirty = true;
+            render();
+        }, 'ghost')));
+    const channels = lockedChannels();
+    const channelRows = channels.map((ch) => el('div', {class: 'lockout-row'},
+        el('span', {class: 'lockout-freq'}, `${ch.number}  ${ch.name}`),
+        el('span', {class: 'muted'}, [ch.zoneSkip ? t('zoneSkip') : null, ch.allSkip ? t('allSkip') : null]
+            .filter((s) => s).join(' · ')),
+        button(t('unlock'), 'x', () => {
+            ch.zoneSkip = false;
+            ch.allSkip = false;
+            render();
+        }, 'ghost')));
+    main.append(pageHead(t('scanLockouts')),
+        el('div', {class: 'general-cards'},
+            el('div', {class: 'card form-card'},
+                el('h3', {class: 'card-title'}, `${t('lockoutFrequencies')} (${codeplug.lockouts.length} / ${LOCKOUTS_MAX})`),
+                el('p', {class: 'muted'}, t('lockoutFrequenciesHint')),
+                freqRows.length ? el('div', {class: 'lockout-list'}, freqRows) : el('p', {class: 'muted'}, t('lockoutNone')),
+                el('div', {class: 'lockout-add'}, input, button(t('lockoutAdd'), 'plus', add))),
+            el('div', {class: 'card form-card'},
+                el('h3', {class: 'card-title'}, `${t('lockoutChannels')} (${channels.length})`),
+                el('p', {class: 'muted'}, t('lockoutChannelsHint')),
+                channelRows.length ? el('div', {class: 'lockout-list'}, channelRows) : el('p', {class: 'muted'}, t('lockoutNone')))));
+}
+
 /* ---- satellites ---- */
 
 const CTCSS_LIST = [670, 693, 719, 744, 770, 797, 825, 854, 885, 915, 948, 974, 1000, 1035, 1072, 1109, 1148, 1188,
@@ -1632,13 +1697,34 @@ async function readImage() {
     return img;
 }
 
+// What the radio has now: the sectors whose CRC ('D' 'K', firmware 0.4.0) is still that of the image last read are
+// taken from it, only the others read; the whole image without that
+async function radioNow() {
+    if (!radioImage || (await link.sectorCrc(0)) === null) {
+        return readImage();
+    }
+    const img = Uint8Array.from(radioImage);
+    const sectors = L.REGIONS.flatMap((r) => Array.from({length: (r.end - r.start) / L.SECTOR},
+        (_, i) => r.start + (i * L.SECTOR)));
+    for (let i = 0; i < sectors.length; i++) {
+        const a = sectors[i];
+        if ((await link.sectorCrc(a)) !== ODDB.crc32(radioImage.subarray(a, a + L.SECTOR))) {
+            await link.readRegion(img, a, a + L.SECTOR);
+        }
+        progress(i + 1, sectors.length);
+    }
+    return img;
+}
+
 async function readRadio() {
     status(t('reading'));
     try {
         await link.saveSettings();
-        codeplug = new Codeplug(await readImage());
-        selectedChannel = null;
+        const img = await readImage(); // packed: about a second, no speed change needed
         await link.closeScreen();
+        radioImage = Uint8Array.from(img);
+        codeplug = new Codeplug(img);
+        selectedChannel = null;
         status(t('readDone'));
         // the radio cannot fetch orbits: tell when the ones in it are getting old
         const oldest = Math.max(-1, ...codeplug.satellites.map((s) => satAgeDays(s) ?? -1));
@@ -1676,7 +1762,7 @@ async function writeRadio() {
         codeplug.store();
         status(t('reading'));
         await link.saveSettings(); // the settings in the flash as the radio has them; nothing left to save at restart
-        const onRadio = await readImage();
+        const onRadio = await radioNow();
         const target = Uint8Array.from(onRadio);
         const ranges = L.ownedRanges(codeplug.channelsPerZone);
         if (codeplug.settings.dirty && codeplug.settings.valid) { // the radio's settings only when changed here
@@ -1695,6 +1781,7 @@ async function writeRadio() {
                 }
             }
         }
+        radioImage = onRadio;
         if (sectors.length === 0) {
             await link.closeScreen();
             status(t('nothingToWrite'));
@@ -1706,6 +1793,7 @@ async function writeRadio() {
             await link.writeSector(sectors[i], target.subarray(a, a + L.SECTOR));
             progress(i + 1, sectors.length);
         }
+        radioImage = target; // what the radio has now
         await link.restart();
         status(t('writeDone') + ` (${sectors.length} × 4 KB)`);
         toast(t('writeDone'));

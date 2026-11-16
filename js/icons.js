@@ -17,6 +17,7 @@ const PATHS = {
     sliders: 'M4 6h10 M18 6h2 M16 4v4 M4 12h4 M12 12h8 M10 10v4 M4 18h12 M20 18h0 M18 16v4',
     satellite: 'M9 9l6 6 M7 11l-4 4 3 3 4-4 M13 7l4-4 3 3-4 4 M16 21a5 5 0 0 0 5-5 M16 18a2 2 0 0 0 2-2',
     plus: 'M12 5v14 M5 12h14',
+    scan: 'M20 12a8 8 0 1 1-2.3-5.7 M20 4v4h-4',
     trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13',
     search: 'M11 18a7 7 0 1 0 0-14a7 7 0 1 0 0 14 M16 16l5 5',
     x: 'M6 6l12 12 M18 6L6 18',
