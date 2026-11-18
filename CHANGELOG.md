@@ -1,5 +1,16 @@
 # Changelog / 版本记录
 
+## 0.8.1 (2026-11-18)
+
+- DMR IDs: the ContactLists list on GitHub the CPS downloaded is gone (404). The button now downloads radioid.net's
+  user.csv (some 17 MB) in the browser, to be opened with "Open a CSV file": radioid.net lets no page read it
+  directly. "Download and write" is gone with it ([#5](https://github.com/va3bpf/opendmr-cps/issues/5)).
+  DMR ID：CPS 原来下载的 GitHub 上的 ContactLists 列表已经没有了（404）。按钮改成在浏览器里下载 radioid.net 的 user.csv
+  （约 17 MB），再用「打开 CSV 文件」打开：radioid.net 不允许网页直接读取。「下载并写入」也随之去掉。
+- Channels and CSV import: the airband (108 - 136.9975 MHz, receive only, OpenDMR 0.4.0 and later) is accepted
+  ([#3](https://github.com/va3bpf/opendmr-cps/issues/3)).
+  信道和 CSV 导入：接受航空频段（108 - 136.9975 MHz，只收，OpenDMR 0.4.0 及以后）。
+
 ## 0.8.0 (2026-11-17)
 
 - NXDN channels (firmware with NXDN, opendmr_mode 0xA5): the mode in the channel and VFO editors, the CSV files

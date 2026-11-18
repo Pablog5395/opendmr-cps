@@ -996,43 +996,17 @@ const dmrIdOptions = {textLength: DMR.DEFAULT_TEXT_LENGTH, withCity: false, pref
 let dmrIdBusy = false;
 let oddbCache = null; // {key, db, error}: our database of the list and prefixes (built in a few seconds)
 
-// The text of a response, the progress bar following its length
-async function fetchText(url) {
-    const r = await fetch(url, {cache: 'no-store'});
-    if (!r.ok) {
-        throw new Error(`HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
-    }
-    const total = Number(r.headers.get('Content-Length')) || 0;
-    if (!r.body || !total) {
-        return r.text();
-    }
-    const reader = r.body.getReader();
-    const parts = [];
-    let got = 0;
-    for (;;) {
-        const {value, done} = await reader.read();
-        if (done) {
-            break;
-        }
-        parts.push(value);
-        got += value.length;
-        progress(got, total);
-    }
-    progress(0, 0);
-    return new TextDecoder().decode(await new Blob(parts).arrayBuffer());
-}
-
-async function loadDmrIds(source, file) {
-    status(file ? t('idReading') : t('idLoading'));
+async function loadDmrIds(file) {
+    status(t('idReading'));
     try {
-        const text = file ? await file.text() : await fetchText(DMR.SOURCES[source]);
+        const text = await file.text();
         let entries;
         try {
             entries = DMR.parseCsv(text);
         } catch (e) {
             throw new Error(t('idBadCsv'));
         }
-        dmrDb = {entries, source: file ? file.name : 'ContactLists'};
+        dmrDb = {entries, source: file.name};
         oddbCache = null;
         status(`${t('idLoaded')} ${entries.length} ${t('idEntries')}`);
     } catch (e) {
@@ -1186,7 +1160,7 @@ function viewDmrIds(main) {
     const fileInput = el('input', {type: 'file', accept: '.csv,text/csv', hidden: true});
     fileInput.addEventListener('change', () => {
         if (fileInput.files[0]) {
-            loadDmrIds(null, fileInput.files[0]);
+            loadDmrIds(fileInput.files[0]);
         }
     });
     // as the radio shows a caller: the callsign, the name, the city and state, the country
@@ -1206,8 +1180,8 @@ function viewDmrIds(main) {
                 el('h3', {class: 'card-title'}, t('idSource')),
                 el('p', {class: 'muted'}, t('idIntro')),
                 el('div', {class: 'id-sources'},
-                    button(t('idDownload'), 'download', () => loadDmrIds('contactLists'), 'primary'),
-                    button(t('idOpenCsv'), 'open', () => fileInput.click()),
+                    button(t('idDownload'), 'download', () => window.open(DMR.RADIOID_CSV, '_blank', 'noopener')),
+                    button(t('idOpenCsv'), 'open', () => fileInput.click(), 'primary'),
                     fileInput),
                 el('p', {class: 'id-loaded'}, dmrDb ? `${dmrDb.entries.length} ${t('idEntries')} · ${dmrDb.source}`
                     : t('idNone'))),
@@ -1229,16 +1203,8 @@ function viewDmrIds(main) {
                     samples.map((r) => el('div', {class: 'id-sample'}, el('span', {class: 'dim'}, r[0]), ' ', shown(r))))
                     : null,
                 el('div', {class: 'id-write'},
-                    // no list yet: the button downloads ContactLists first
-                    el('button', {class: 'primary', disabled: !link?.connected || dmrIdBusy || (dmrDb && !db && !old.count),
-                        onclick: async () => {
-                            if (!dmrDb) {
-                                await loadDmrIds('contactLists');
-                            }
-                            if (dmrDb) {
-                                await writeDmrIds();
-                            }
-                        }}, icon('upload'), t(dmrDb ? 'idWrite' : 'idDownloadWrite')),
+                    el('button', {class: 'primary', disabled: !link?.connected || dmrIdBusy || !dmrDb || (!db && !old.count),
+                        onclick: writeDmrIds}, icon('upload'), t('idWrite')),
                     link?.connected ? null : el('span', {class: 'muted'}, t('idConnectFirst'))),
                 el('p', {class: 'muted id-hint'}, t('idFirmwareNote')))));
 }
