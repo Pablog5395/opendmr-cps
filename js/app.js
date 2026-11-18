@@ -350,8 +350,88 @@ function channelEditor(ch, opts) {
 
 /* ---- channels ---- */
 
+// Rows ticked to delete many at once: a box per row, one in the header for all the rows shown, and a button that
+// deletes the ticked ones after asking. items(): all of them, shown(): those the filter shows, remove(list): deletes
+// them, redraw(): the rows drawn again
+function bulkDelete({items, shown, remove, redraw}) {
+    const ticked = new Set();
+    const all = el('input', {type: 'checkbox', title: t('tickAll')});
+    const del = button(t('deleteTicked'), 'trash', () => {
+        const list = [...ticked];
+        if (list.length && confirm(t('deleteTickedAsk').replace('{n}', list.length))) {
+            remove(list);
+            ticked.clear();
+            redraw();
+        }
+    }, 'danger');
+    function update() {
+        const present = new Set(items());
+        for (const x of ticked) {
+            if (!present.has(x)) {
+                ticked.delete(x);
+            }
+        }
+        const list = shown();
+        const n = list.filter((x) => ticked.has(x)).length;
+        all.checked = list.length > 0 && n === list.length;
+        all.indeterminate = n > 0 && n < list.length;
+        del.hidden = !ticked.size;
+        del.lastChild.textContent = `${t('deleteTicked')} (${ticked.size})`;
+    }
+    all.addEventListener('change', () => {
+        for (const x of shown()) {
+            if (all.checked) {
+                ticked.add(x);
+            } else {
+                ticked.delete(x);
+            }
+        }
+        redraw();
+    });
+    const tick = (item) => {
+        const box = el('input', {type: 'checkbox', checked: ticked.has(item)});
+        box.addEventListener('click', (e) => e.stopPropagation());
+        box.addEventListener('change', () => {
+            if (box.checked) {
+                ticked.add(item);
+            } else {
+                ticked.delete(item);
+            }
+            update();
+        });
+        return el('td', {class: 'check-cell', onclick: (e) => e.stopPropagation()}, box);
+    };
+    return {head: el('th', {class: 'check-cell'}, all), tick, button: del, update};
+}
+
+// Channels deleted, and taken out of the zones
+function removeChannels(list) {
+    const gone = new Set(list);
+    const numbers = new Set(list.map((c) => c.number));
+    codeplug.channels = codeplug.channels.filter((c) => !gone.has(c));
+    for (const z of codeplug.zones) {
+        z.channels = z.channels.filter((n) => !numbers.has(n));
+    }
+}
+
+// Contacts deleted, and taken out of the TG lists and the channels
+function removeContacts(list) {
+    const gone = new Set(list);
+    const indexes = new Set(list.map((c) => c.index));
+    codeplug.contacts = codeplug.contacts.filter((c) => !gone.has(c));
+    for (const g of codeplug.rxGroups) {
+        g.contacts = g.contacts.filter((i) => !indexes.has(i));
+    }
+    for (const ch of codeplug.channels) {
+        if (indexes.has(ch.contact)) {
+            ch.contact = 0;
+        }
+    }
+}
+
 function viewChannels(main) {
     let filter = '';
+    let shown = [];
     const [search] = searchBox((f) => {
         filter = f;
         fill();
@@ -379,6 +459,7 @@ function viewChannels(main) {
             tr.classList.add('selected');
             openDrawer();
         }},
+        bulk.tick(ch),
         el('td', {class: 'num'}, ch.number),
         el('td', {class: 'name'}, ch.name),
         el('td', {}, el('span', {class: 'pill ' + ch.mode}, ch.mode)),
@@ -395,13 +476,30 @@ function viewChannels(main) {
     }
 
     function fill() {
-        const list = codeplug.channels.filter((c) => !filter || c.name.toLowerCase().includes(filter) ||
+        shown = codeplug.channels.filter((c) => !filter || c.name.toLowerCase().includes(filter) ||
             mhz(c.rx).includes(filter));
-        body.replaceChildren(...list.map(row));
-        if (!list.length) {
-            body.append(el('tr', {}, el('td', {colspan: 9, class: 'empty'}, '—')));
+        body.replaceChildren(...shown.map(row));
+        if (!shown.length) {
+            body.append(el('tr', {}, el('td', {colspan: 10, class: 'empty'}, '—')));
         }
+        bulk.update();
     }
+
+    const bulk = bulkDelete({
+        items: () => codeplug.channels,
+        shown: () => shown,
+        remove: (list) => {
+            removeChannels(list);
+            if (list.includes(selectedChannel)) {
+                selectedChannel = null;
+            }
+        },
+        redraw: () => {
+            counts();
+            fill();
+            openDrawer();
+        },
+    });
 
     function refreshRow() {
         if (selectedChannel?.row) {
@@ -436,10 +534,7 @@ function viewChannels(main) {
                     openDrawer();
                 }),
                 iconButton('trash', t('deleteChannel'), () => {
-                    codeplug.channels = codeplug.channels.filter((c) => c !== ch);
-                    for (const z of codeplug.zones) {
-                        z.channels = z.channels.filter((n) => n !== ch.number);
-                    }
+                    removeChannels([ch]);
                     selectedChannel = null;
                     counts();
                     fill();
@@ -457,6 +552,7 @@ function viewChannels(main) {
     main.append(
         pageHead(t('channels'),
             el('span', {class: 'spacer'}),
+            bulk.button,
             search,
             button(t('add'), 'plus', () => {
                 const n = codeplug.freeChannelNumber();
@@ -479,8 +575,8 @@ function viewChannels(main) {
             el('div', {class: 'card', style: 'flex:1;min-width:0'},
                 el('div', {class: 'table-wrap'},
                     el('table', {class: 'grid'},
-                        el('thead', {}, el('tr', {}, ['number', 'name', 'mode', 'rxFreq', 'txFreq', 'tone', 'contactOrList',
-                            'power', 'flags'].map((k) => el('th', {}, t(k))))),
+                        el('thead', {}, el('tr', {}, bulk.head, ['number', 'name', 'mode', 'rxFreq', 'txFreq', 'tone',
+                            'contactOrList', 'power', 'flags'].map((k) => el('th', {}, t(k))))),
                         body))),
             drawer));
     fill();
@@ -698,6 +794,7 @@ function viewRxGroups(main) {
 function viewContacts(main) {
     let filter = '';
     let selected = null;
+    let shown = [];
     const [search] = searchBox((f) => {
         filter = f;
         fill();
@@ -712,6 +809,7 @@ function viewContacts(main) {
             tr.classList.add('selected');
             openDrawer();
         }},
+        bulk.tick(c),
         el('td', {class: 'num'}, c.index),
         el('td', {class: 'name'}, c.name),
         el('td', {class: 'mono'}, c.id),
@@ -722,10 +820,27 @@ function viewContacts(main) {
     }
 
     function fill() {
-        const list = codeplug.contacts.filter((c) => !filter || c.name.toLowerCase().includes(filter) ||
+        shown = codeplug.contacts.filter((c) => !filter || c.name.toLowerCase().includes(filter) ||
             String(c.id).includes(filter));
-        body.replaceChildren(...list.map(row));
+        body.replaceChildren(...shown.map(row));
+        bulk.update();
     }
+
+    const bulk = bulkDelete({
+        items: () => codeplug.contacts,
+        shown: () => shown,
+        remove: (list) => {
+            removeContacts(list);
+            if (list.includes(selected)) {
+                selected = null;
+            }
+        },
+        redraw: () => {
+            counts();
+            fill();
+            openDrawer();
+        },
+    });
 
     function openDrawer() {
         const c = selected;
@@ -742,15 +857,7 @@ function viewContacts(main) {
         drawer.replaceChildren(
             el('div', {class: 'drawer-head'}, el('h3', {}, c.name),
                 iconButton('trash', t('delete'), () => {
-                    codeplug.contacts = codeplug.contacts.filter((x) => x !== c);
-                    for (const g of codeplug.rxGroups) {
-                        g.contacts = g.contacts.filter((i) => i !== c.index);
-                    }
-                    for (const ch of codeplug.channels) {
-                        if (ch.contact === c.index) {
-                            ch.contact = 0;
-                        }
-                    }
+                    removeContacts([c]);
                     selected = null;
                     counts();
                     fill();
@@ -776,7 +883,7 @@ function viewContacts(main) {
     }
 
     main.append(
-        pageHead(t('contacts'), el('span', {class: 'spacer'}), search,
+        pageHead(t('contacts'), el('span', {class: 'spacer'}), bulk.button, search,
             button(t('add'), 'plus', () => {
                 const i = codeplug.freeContactIndex();
                 if (!i) {
@@ -795,7 +902,7 @@ function viewContacts(main) {
             el('div', {class: 'card', style: 'flex:1;min-width:0'},
                 el('div', {class: 'table-wrap'},
                     el('table', {class: 'grid'},
-                        el('thead', {}, el('tr', {}, ['number', 'name', 'id', 'callType', 'tsOverride']
+                        el('thead', {}, el('tr', {}, bulk.head, ['number', 'name', 'id', 'callType', 'tsOverride']
                             .map((k) => el('th', {}, t(k))))),
                         body))),
             drawer));

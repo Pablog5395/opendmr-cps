@@ -1,5 +1,13 @@
 # Changelog / 版本记录
 
+## 0.8.3 (2026-11-18)
+
+- Channels and contacts: delete many at once. Tick them (the box in the header ticks all those the filter shows),
+  then "Delete ticked"; deleted channels leave their zones, deleted contacts their TG lists and channels, as one by
+  one ([#1](https://github.com/va3bpf/opendmr-cps/issues/1)).
+  信道和联系人可以批量删除：勾选（表头的勾选框全选筛选后显示的这些），再点「删除选中」；和逐个删除一样，删掉的信道会从区域里去掉，
+  删掉的联系人会从接收组和信道里去掉。
+
 ## 0.8.2 (2026-11-18)
 
 - Satellites: the common satellites are now your own list. Add a satellite to it or update it with its frequencies
