@@ -1,5 +1,14 @@
 # Changelog / 版本记录
 
+## 0.8.2 (2026-11-18)
+
+- Satellites: the common satellites are now your own list. Add a satellite to it or update it with its frequencies
+  (and its TLE when no orbit file has it, e.g. a new satellite with a temporary number), remove one, make a new
+  satellite, export the list as a file to share and import one; "Back to the CPS list" undoes it. The list is kept in
+  the browser.
+  卫星：常用卫星可以改成你自己的列表。把一颗卫星连同它的频率存到常用或更新（轨道文件里没有的卫星，比如刚发射、只有临时编号的，
+  连它的 TLE 一起存），从常用移除，新建卫星，把列表导出成文件分享、导入别人的列表；「恢复自带列表」回到 CPS 的。列表存在浏览器里。
+
 ## 0.8.1 (2026-11-18)
 
 - DMR IDs: the ContactLists list on GitHub the CPS downloaded is gone (404). The button now downloads radioid.net's

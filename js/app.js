@@ -1704,23 +1704,32 @@ async function loadTleCatalog() {
 // Unticked satellites edited (catalog -> satellite): what they get once ticked
 const satDrafts = new Map();
 
+// The common satellites: the user's own list (kept in the browser) or our presets
+let satList = SAT.loadList();
+const commonSats = () => satList ?? SAT.PRESETS;
+
+function setSatList(list) {
+    satList = list;
+    SAT.saveList(list);
+}
+
 // Tick the satellites to have in the radio: the common ones first (frequencies known), the others of the orbit file
 // below. Orbits come by themselves (here, and again before writing); a name opens its editor
 function viewSatellites(main) {
     let selected = null;
     let preview = null; // an unticked satellite clicked: its details, read only
     let filter = '';
-    const presetOf = new Map(SAT.PRESETS.map((p) => [p.catalog, p]));
+    let presetOf = new Map(); // the common satellites by key (draw())
     const mhzOrEmpty = (hz) => (hz ? mhz(hz) : '');
     // catalog numbers are not stored in the radio: the presets give them by name
     for (const s of codeplug.satellites) {
-        s.catalog ||= SAT.PRESETS.find((p) => p.name === s.name)?.catalog ?? '';
+        s.catalog ||= commonSats().find((p) => p.name === s.name)?.catalog ?? '';
     }
     const changed = () => {
         codeplug.satellitesDirty = true;
         $('countSatellites').textContent = codeplug.satellites.length || '';
     };
-    const inRadio = (catalog) => codeplug.satellites.find((s) => s.catalog === catalog);
+    const inRadio = (key) => codeplug.satellites.find((s) => SAT.satKey(s) === key);
     // an unticked satellite as it would go in: its preset or name, its orbit, what was edited of it
     const draftFor = (entry) => {
         if (!satDrafts.has(entry.catalog)) {
@@ -1828,7 +1837,7 @@ function viewSatellites(main) {
         el('td', {class: 'dim'}, known?.ctcss ? (known.ctcss / 10).toFixed(1) : ''),
         cell(known?.aprsRx),
         el('td', {}, orbit, gone ? el('span', {class: 'orbit old', title: t('goneLong'), style: 'margin-left:6px'}, t('gone')) : null),
-        el('td', {class: 'mono dim'}, entry.catalog));
+        el('td', {class: 'mono dim'}, /^\d+$/.test(entry.catalog) ? entry.catalog : ''));
     }
 
     function draw() {
@@ -1836,10 +1845,12 @@ function viewSatellites(main) {
         const f = filter.trim().toLowerCase();
         const match = (x) => !f || x.short.toLowerCase().includes(f) || (x.name ?? '').toLowerCase().includes(f) ||
             String(x.catalog).includes(f);
-        const common = SAT.PRESETS.map((p) => ({catalog: p.catalog, short: p.name, name: catalog.get(p.catalog)?.name ?? ''}));
+        presetOf = new Map(commonSats().map((p) => [SAT.satKey(p), p]));
+        const common = commonSats().map((p) => ({catalog: SAT.satKey(p), short: p.name,
+            name: (p.catalog && catalog.get(p.catalog)?.name) || ''}));
         // a satellite keeps its place when ticked: "mine" are only those the orbit file does not have
-        const mine = codeplug.satellites.filter((s) => !presetOf.has(s.catalog) && !catalog.has(s.catalog))
-            .map((s) => ({catalog: s.catalog || s.name, short: s.name, name: ''}));
+        const mine = codeplug.satellites.filter((s) => !presetOf.has(SAT.satKey(s)) && !catalog.has(s.catalog))
+            .map((s) => ({catalog: SAT.satKey(s), short: s.name, name: ''}));
         const others = [...catalog.values()]
             .filter((x) => !presetOf.has(x.catalog))
             .map((x) => ({catalog: x.catalog, short: shortSatName(x.name, x.catalog), name: x.name}))
@@ -1866,7 +1877,7 @@ function viewSatellites(main) {
             el('p', {class: 'sat-intro'}, t('satIntro'), el('br'), orbitLine()),
             el('div', {class: 'work'},
                 el('div', {class: 'card', style: 'flex:1;min-width:0'},
-                    listTools(),
+                    ...listTools(),
                     el('div', {class: 'table-wrap'},
                         el('table', {class: 'grid sat-table'},
                             el('thead', {}, el('tr', {}, el('th', {class: 'check-cell'}),
@@ -1886,15 +1897,17 @@ function viewSatellites(main) {
         }
     }
 
-    // Select all the common satellites (or none), and the list and orbits fetched again
+    // Select all the common satellites (or none), and the list and orbits fetched again; then the common list's own
+    // tools: a new satellite, the list imported, exported, back to ours
     function listTools() {
-        const commonIn = SAT.PRESETS.filter((p) => inRadio(p.catalog));
-        const all = el('input', {type: 'checkbox', checked: commonIn.length === SAT.PRESETS.length});
-        all.indeterminate = commonIn.length > 0 && commonIn.length < SAT.PRESETS.length;
+        const list = commonSats();
+        const commonIn = list.filter((p) => inRadio(SAT.satKey(p)));
+        const all = el('input', {type: 'checkbox', checked: commonIn.length === list.length});
+        all.indeterminate = commonIn.length > 0 && commonIn.length < list.length;
         all.addEventListener('change', () => {
             if (all.checked) {
-                for (const p of SAT.PRESETS) {
-                    if (inRadio(p.catalog)) {
+                for (const p of list) {
+                    if (inRadio(SAT.satKey(p))) {
                         continue;
                     }
                     if (codeplug.satellites.length >= SAT.SATELLITES_MAX) {
@@ -1902,14 +1915,14 @@ function viewSatellites(main) {
                         break;
                     }
                     const s = SAT.newSatellite(p);
-                    const x = tleCatalog?.map.get(p.catalog);
+                    const x = p.catalog && tleCatalog?.map.get(p.catalog);
                     if (x) {
                         Object.assign(s, SAT.fromTleLines(x.line1, x.line2));
                     }
                     codeplug.satellites.push(s);
                 }
             } else {
-                codeplug.satellites = codeplug.satellites.filter((s) => !presetOf.has(s.catalog));
+                codeplug.satellites = codeplug.satellites.filter((s) => !presetOf.has(SAT.satKey(s)));
                 if (selected && !codeplug.satellites.includes(selected)) {
                     selected = null;
                 }
@@ -1933,13 +1946,62 @@ function viewSatellites(main) {
             filter = search.value;
             draw();
         });
-        return el('div', {class: 'sat-tools'},
-            el('label', {class: 'sat-all'}, all, t('selectAllCommon')),
-            el('label', {class: 'search'}, icon('search'), search),
-            el('span', {style: 'flex:1'}),
-            tleCatalog && !tleCatalog.error ? el('span', {class: 'muted small'},
-                `${t('listOf')} ${tleCatalog.time.toLocaleTimeString().slice(0, 5)}`) : null,
-            refresh);
+        const fileInput = el('input', {type: 'file', accept: '.json,application/json', hidden: true});
+        fileInput.addEventListener('change', async () => {
+            const file = fileInput.files[0];
+            if (!file) {
+                return;
+            }
+            try {
+                setSatList(SAT.parseListFile(await file.text()));
+                toast(`${t('satListImported')}: ${satList.length}`);
+            } catch (e) {
+                toast(`${t('satListBad')}: ${e.message}`, 8000);
+            }
+            draw();
+        });
+        const newSat = button(t('newSat'), 'plus', () => {
+            if (codeplug.satellites.length >= SAT.SATELLITES_MAX) {
+                toast(t('satFull'));
+                return;
+            }
+            let n = 1;
+            while (inRadio(`NEW${n}`) || presetOf.has(`NEW${n}`)) {
+                n++;
+            }
+            const s = SAT.newSatellite({name: `NEW${n}`});
+            codeplug.satellites.push(s);
+            changed();
+            selected = s;
+            preview = null;
+            draw();
+        }, 'ghost');
+        const exportList = button(t('satListExport'), 'download', () => {
+            const a = el('a', {href: URL.createObjectURL(new Blob([SAT.listFile(commonSats())], {type: 'application/json'})),
+                download: 'opendmr-satellites.json'});
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }, 'ghost');
+        const reset = satList ? button(t('satListReset'), null, () => {
+            if (confirm(t('satListResetAsk'))) {
+                setSatList(null);
+                draw();
+            }
+        }, 'ghost') : null;
+        return [
+            el('div', {class: 'sat-tools'},
+                el('label', {class: 'sat-all'}, all, t('selectAllCommon')),
+                el('label', {class: 'search'}, icon('search'), search),
+                el('span', {style: 'flex:1'}),
+                tleCatalog && !tleCatalog.error ? el('span', {class: 'muted small'},
+                    `${t('listOf')} ${tleCatalog.time.toLocaleTimeString().slice(0, 5)}`) : null,
+                refresh),
+            el('div', {class: 'sat-tools'},
+                el('span', {class: 'muted small'}, satList ? t('satListMine') : t('satListOurs')),
+                el('span', {style: 'flex:1'}),
+                newSat, button(t('satListImport'), 'open', () => fileInput.click(), 'ghost'), exportList, reset,
+                fileInput),
+        ];
     }
 
     // The editor of one satellite: its frequencies, and a TLE of its own when no source has one
@@ -1957,6 +2019,27 @@ function viewSatellites(main) {
             edit();
             draw();
         }, (x) => (x === '' ? 0 : parseMhzAny(x)), mhzOrEmpty));
+        // the common list: this satellite put in it with what it has now (its TLE when no orbit file has it), or out
+        const key = SAT.satKey(s);
+        const listed = presetOf.has(key);
+        const saveToList = () => {
+            const entry = SAT.toListEntry(s, !(s.catalog && tleCatalog?.map.has(s.catalog)));
+            if (!entry) {
+                toast(t('satListBad'));
+                return;
+            }
+            const list = [...commonSats()];
+            const at = list.findIndex((p) => SAT.satKey(p) === key);
+            list.splice((at < 0) ? list.length : at, (at < 0) ? 0 : 1, entry);
+            setSatList(list);
+            toast(t('satListSaved'));
+            draw();
+        };
+        const removeFromList = () => {
+            setSatList(commonSats().filter((p) => SAT.satKey(p) !== key));
+            toast(t('satListRemoved'));
+            draw();
+        };
         return [
             el('div', {class: 'drawer-head'}, el('h3', {}, s.name),
                 draft ? button(t('addToRadio'), 'plus', () => {
@@ -1966,6 +2049,9 @@ function viewSatellites(main) {
                         draw();
                     }
                 }, 'primary') : el('span', {class: 'tag'}, t('inRadio'))),
+            el('div', {class: 'sat-list-actions'},
+                button(t(listed ? 'satListUpdate' : 'satListAdd'), listed ? null : 'plus', saveToList, 'ghost'),
+                listed ? button(t('satListRemove'), null, removeFromList, 'ghost') : null),
             el('div', {class: 'section'}, el('div', {class: 'fields'},
                 field(t('name'), valueInput(s.name, (v) => {
                     s.name = v;
