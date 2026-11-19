@@ -9,7 +9,7 @@
 //               'S' divisor(2) -> 'S', 'H' -> "DMP1" + divisor, 'Y' -> 'Y'; 'P' done(2) total(2) -> 'P'
 
 import {RawPort} from './serial.js';
-import {dumper_bin} from './dumper-bin.js';
+import {dumperImage} from './assets.js';
 import {crc32} from '../codeplug/oddb.js';
 
 const BLOCK = 4096;
@@ -223,7 +223,7 @@ export class Bootloader {
     // Bootloader, reader, speed: the radio off, this waiting, then switched on
     async prepare(onWait = null) {
         await this.waitForBootloader(30000, onWait);
-        await this.upload(dumper_bin());
+        await this.upload(await dumperImage());
         const divisor = await this.hello();
         if (divisor === null) {
             throw new Error('the reader did not start');

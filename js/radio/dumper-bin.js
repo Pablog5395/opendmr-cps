@@ -1,5 +1,7 @@
 // The flash reader (tools/backup/dumper/dumper.c), loaded into the radio's RAM by the chip bootloader.
-// tools/backup/dumper/dumper.bin, 4676 bytes, base64. Made by tools/web/embed_bin.py: do not edit.
+// tools/backup/dumper/dumper.bin, 4676 bytes, base64: the copy for a page opened from disk (file://). Served from
+// this folder, the page reads assets/dumper.bin instead (js/radio/assets.js). Made by tools/web/embed_bin.py:
+// do not edit.
 
 export const DUMPER_BIN = (
     'gMAgcC7qBQAA6LICIhSQM3VDALMAM2C4YJhD6QgAYJgAI2C4YJhj6fz/kDCEYBVADOoAAGCBYbCO3QEgYZhD6QgAYZgAI2G4' +

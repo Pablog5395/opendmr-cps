@@ -28,7 +28,12 @@
   卫星，以及出厂校准的那个扇区）。后两份走芯片引导程序：电台先关机，页面等它开机时握手。
 - **写回备份**：只写和电台不同的扇区，写完全部校验；写程序 Flash 时 0xC000 以下的引导程序不动。
 
-电台端用的两个程序（更新程序、读 Flash 程序）已经内置在页面里，不用另外下载。
+电台端用的两个程序在 `assets/` 里（`updater.bin`、`dumper.bin`），从文件夹（`py serve.py`）打开时读的是这两个文件；
+从磁盘双击打开 `opendmr-cps.html` 时用页面里内置的同一份副本（`file://` 不许读文件）。重建它们之后跑一次
+`py tools/web/embed_bin.py`：`assets/` 和内置副本一起更新。
+
+要一个可以直接上传的文件夹版本：`py tools/web/make_folder.py` 生成 `dist/web/`（页面源码 + `js/` + `assets/` +
+`serve.py`），放进任何 HTTP 服务器即可。
 
 ## 使用
 
@@ -52,3 +57,8 @@
 - `py release.py`：生成发行用的 `opendmr-cps.html`（代码合成一个文件，压缩到最小）。改完源码后运行。
   需要先安装：`py -m pip install rjsmin rcssmin minify-html zopfli`
 - `py build.py`：生成可读的 `opendmr-cps-debug.html`，用于调试从磁盘直接打开的情况
+- `py tools/web/make_folder.py`：生成 `dist/web/`，作为网站用文件夹发布（页面模块 + `assets/`）；
+  `py tools/web/embed_bin.py`：把 `tools/debug/updater/updater.bin` 和 `tools/backup/dumper/dumper.bin`
+  复制到 `assets/` 并重新生成内置副本
+- 测试（不用电台）：`node tools/web/tests/test-updater.mjs`、`test-bootloader.mjs`、`test-assets.mjs`，
+  以及 `py build.py && node tools/web/tests/test-page.mjs`（需要 jsdom）

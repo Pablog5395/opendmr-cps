@@ -7,6 +7,7 @@ import {icon} from './icons.js';
 import {RawPort} from './radio/serial.js';
 import {Updater, prepareImage} from './radio/updater.js';
 import {Bootloader, CHIP_DATA, CHIP_PROGRAM} from './radio/bootloader.js';
+import {sources, updaterImage} from './radio/assets.js';
 import * as L from './codeplug/layout.js';
 
 const PROGRAM_SIZE = 1 << 20;          // the GD25Q80
@@ -19,6 +20,8 @@ export function createFlasher(deps) {
     const state = {
         busy: false,
         firmware: null,      // {name, size, image}
+        assetSource: null,   // 'assets' or 'embedded', once the page knows
+        assetLoading: false,
     };
 
     function download(name, data) {
@@ -231,6 +234,18 @@ export function createFlasher(deps) {
             }
         });
 
+        // the radio-side program: the file in assets/ when the page is served from a folder, the embedded copy from disk
+        if (!state.assetSource && !state.assetLoading) {
+            state.assetLoading = true;
+            updaterImage().then(() => {
+                state.assetLoading = false;
+                state.assetSource = sources['assets/updater.bin'] ?? null;
+                rerender();
+            }).catch(() => {
+                state.assetLoading = false;
+            });
+        }
+
         main.append(pageHead(t('flasher')),
             el('div', {class: 'general-cards'},
                 card(t('flUpdateCard'), t('flUpdateIntro'),
@@ -243,7 +258,9 @@ export function createFlasher(deps) {
                     el('p', {class: 'muted'}, state.firmware
                         ? `${state.firmware.name} · ${(state.firmware.size / 1024).toFixed(0)} KB`
                         : t('flNoFirmware')),
-                    el('p', {class: 'muted id-hint'}, t('flUpdateHint'))),
+                    el('p', {class: 'muted id-hint'}, t('flUpdateHint')),
+                    state.assetSource ? el('p', {class: 'muted id-hint'},
+                        t(state.assetSource === 'assets' ? 'flProgramsFiles' : 'flProgramsEmbedded')) : null),
                 card(t('flBackupCard'), t('flBackupIntro'),
                     el('div', {class: 'id-sources'},
                         el('button', {onclick: doCodeplug}, icon('download'), t('flBackupCodeplug')),

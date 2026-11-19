@@ -12,7 +12,7 @@
 // The loader (src/services/serial_update.c) answers "DU", then "UPL1" + area(4) + size(4).
 
 import {RawPort} from './serial.js';
-import {updater_bin} from './updater-bin.js';
+import {updaterImage} from './assets.js';
 import {crc32} from '../codeplug/oddb.js';
 
 const UART_CLOCK = 84000000 / 16;   // the radio's UART: baud = UART_CLOCK / divisor
@@ -93,7 +93,7 @@ export class Updater {
         const given = new DataView(area.buffer, area.byteOffset, 8);
         const givenArea = given.getUint32(0);
         const givenSize = given.getUint32(4);
-        const image = updater_bin();
+        const image = await updaterImage();
         if (givenArea !== UPDATER_AREA || image.length + SECTOR + 256 > givenSize) {
             throw new Error(`the firmware gives 0x${givenArea.toString(16)} (${givenSize} bytes), the update program ` +
                 `needs 0x${UPDATER_AREA.toString(16)} (${image.length + SECTOR + 256})`);

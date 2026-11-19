@@ -1,5 +1,7 @@
 // The firmware update program (tools/debug/updater/updater.c), loaded into the radio's RAM by its loader.
-// tools/debug/updater/updater.bin, 3464 bytes, base64. Made by tools/web/embed_bin.py: do not edit.
+// tools/debug/updater/updater.bin, 3464 bytes, base64: the copy for a page opened from disk (file://). Served from
+// this folder, the page reads assets/updater.bin instead (js/radio/assets.js). Made by tools/web/embed_bin.py:
+// do not edit.
 
 export const UPDATER_BIN = (
     '2BQpFIAzc0NWEWKT9hHOWmCyQuU7ANtsX2yAMECBE0CAYAAhQJJAswMj6mT3C4Azc0MANCLqBwAGIoKzBDFAswcyQbMls0az' +

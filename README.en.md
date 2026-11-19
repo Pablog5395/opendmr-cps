@@ -36,7 +36,13 @@ The **Flasher** page at the bottom of the sidebar:
 - **Writing a backup back**: only the sectors that differ are written, then all compared; writing the program flash
   leaves the bootloader below 0xC000 alone.
 
-The two programs the radio runs (update program and flash reader) are embedded in the page: nothing to download.
+The two programs the radio runs are in `assets/` (`updater.bin`, `dumper.bin`): served from the folder
+(`py serve.py`) the page reads those files; opened from disk (`opendmr-cps.html`, file:// does not allow reading
+files) it uses identical copies embedded in the page. After rebuilding either, run `py tools/web/embed_bin.py`:
+it updates `assets/` and the embedded copies together.
+
+For a folder to upload: `py tools/web/make_folder.py` makes `dist/web/` (the page's sources + `js/` + `assets/`
++ `serve.py`), ready for any HTTP server.
 
 ## Use
 
@@ -61,3 +67,8 @@ from a file on disk).
 - `py release.py`: makes the release page `opendmr-cps.html` (everything in one file, as small as it gets). Run it after
   changing the sources; needs `py -m pip install rjsmin rcssmin minify-html zopfli` first
 - `py build.py`: makes a readable `opendmr-cps-debug.html`, to debug the page opened from disk
+- `py tools/web/make_folder.py`: makes `dist/web/`, the page as a folder for a web server (modules + `assets/`);
+  `py tools/web/embed_bin.py`: copies `tools/debug/updater/updater.bin` and `tools/backup/dumper/dumper.bin`
+  to `assets/` and remakes the embedded copies
+- tests (no radio): `node tools/web/tests/test-updater.mjs`, `test-bootloader.mjs`, `test-assets.mjs`, and
+  `py build.py && node tools/web/tests/test-page.mjs` (needs jsdom)
