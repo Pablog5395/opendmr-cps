@@ -45,8 +45,9 @@ For a folder to upload: `py tools/web/make_folder.py` makes `dist/web/` (the pag
 + `serve.py`), ready for any HTTP server.
 
 To hand it to someone who does not know computers: `py tools/web/make_package.py` makes
-`dist/paquete/OpenDMR-CPS/` (`Abrir CPS.bat`, `opendmr-cps.html`, the two bins in `programas/`,
-`LEEME-PRIMERO.txt`) and the same as a zip: unzip, double-click `Abrir CPS.bat`, nothing to install.
+`dist/paquete/OpenDMR-CPS/` (`Abrir CPS.bat`, `opendmr-cps.html`, the two bins in `programas/`, a formatted
+`LEEME-PRIMERO.html` and the plain text one) and the same as a zip: unzip, double-click `Abrir CPS.bat`,
+nothing to install.
 
 ## Use
 

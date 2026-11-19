@@ -36,8 +36,8 @@
 `serve.py`），放进任何 HTTP 服务器即可。
 
 要发给不太懂电脑的人：`py tools/web/make_package.py` 生成 `dist/paquete/OpenDMR-CPS/`（`Abrir CPS.bat`、
-`opendmr-cps.html`、`programas/` 里的两个 bin、`LEEME-PRIMERO.txt`）和同名 zip：解压，双击 `Abrir CPS.bat` 就行，
-不用装任何东西。
+`opendmr-cps.html`、`programas/` 里的两个 bin、排版好的 `LEEME-PRIMERO.html` 和纯文本版）和同名 zip：
+解压，双击 `Abrir CPS.bat` 就行，不用装任何东西。
 
 ## 使用
 
