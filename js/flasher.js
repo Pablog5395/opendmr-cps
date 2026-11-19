@@ -197,7 +197,7 @@ export function createFlasher(deps) {
         await bootloaderBackup(portPromise, CHIP_DATA, `${radioName()}-datos-25q128.bin`);
     });
 
-    const doRestore = busyGuard(async (portPromise, file, chip) => {
+    const doRestore = busyGuard(async (portPromise, file, chip, expect) => {
         const boot = new Bootloader(await portPromise);
         try {
             await boot.open();
@@ -206,6 +206,12 @@ export function createFlasher(deps) {
             const data = new Uint8Array(await file.arrayBuffer());
             if (!data.length || (data.length % 4096)) {
                 throw new Error(t('flBadBackup'));
+            }
+            if (chip === CHIP_PROGRAM && expect === 'image' && data.length === PROGRAM_SIZE) {
+                throw new Error(t('flWrongFileImage'));
+            }
+            if (chip === CHIP_PROGRAM && expect === 'backup' && data.length !== PROGRAM_SIZE) {
+                throw new Error(t('flWrongFileFactory'));
             }
             const offset = (chip === CHIP_PROGRAM && data.length !== PROGRAM_SIZE) ? FIRMWARE_BASE : 0;
             const written = await boot.restore(chip, data, {
@@ -240,12 +246,13 @@ export function createFlasher(deps) {
                 toast(t('error') + ': ' + e.message, 8000);
             }
         });
+        let progExpect = 'image'; // what the program flash picker is for: the firmware, or the 1 MB backup
         const progInput = el('input', {type: 'file', accept: '.bin,application/octet-stream', hidden: true});
         progInput.addEventListener('change', () => {
             const file = progInput.files[0];
             progInput.value = '';
             if (file) {
-                withPort((port) => doRestore(port, file, CHIP_PROGRAM));
+                withPort((port) => doRestore(port, file, CHIP_PROGRAM, progExpect));
             }
         });
         const dataInput = el('input', {type: 'file', accept: '.bin,application/octet-stream', hidden: true});
@@ -253,7 +260,7 @@ export function createFlasher(deps) {
             const file = dataInput.files[0];
             dataInput.value = '';
             if (file) {
-                withPort((port) => doRestore(port, file, CHIP_DATA));
+                withPort((port) => doRestore(port, file, CHIP_DATA, 'backup'));
             }
         });
 
@@ -277,11 +284,12 @@ export function createFlasher(deps) {
                         el('button', {class: 'primary', disabled: !state.firmware, onclick: () => withPort((p) => doUpdate(p, false))},
                             icon('upload'), t('flUpdate')),
                         el('button', {disabled: !state.firmware, onclick: () => withPort((p) => doUpdate(p, true))},
-                            icon('upload'), t('flUpdateAll'))),
+                            icon('upload'), t('flInstallAll'))),
                     el('p', {class: 'muted'}, state.firmware
                         ? `${state.firmware.name} · ${(state.firmware.size / 1024).toFixed(0)} KB`
                         : t('flNoFirmware')),
                     el('p', {class: 'muted id-hint'}, t('flUpdateHint')),
+                    el('p', {class: 'muted id-hint'}, t('flFirmwareInFolder')),
                     state.assetSource ? el('p', {class: 'muted id-hint'},
                         t(state.assetSource === 'assets' ? 'flProgramsFiles' : 'flProgramsEmbedded')) : null),
                 card(t('flBackupCard'), t('flBackupIntro'),
@@ -294,11 +302,19 @@ export function createFlasher(deps) {
                         el('dt', {}, t('flBackupCodeplug')), el('dd', {}, t('flBackupCodeplugWhat')),
                         el('dt', {}, t('flBackupProgram')), el('dd', {}, t('flBackupProgramWhat')),
                         el('dt', {}, t('flBackupData')), el('dd', {}, t('flBackupDataWhat')))),
-                card(t('flRestoreCard'), t('flRestoreIntro'),
+                card(t('flBootCard'), t('flBootIntro'),
                     el('div', {class: 'id-sources'},
-                        el('button', {onclick: () => progInput.click()}, icon('upload'), t('flRestoreProgram')),
-                        el('button', {onclick: () => dataInput.click()}, icon('upload'), t('flRestoreData'))),
-                    el('p', {class: 'muted id-hint'}, t('flRestoreHint'))),
+                        el('button', {onclick: () => {
+                            progExpect = 'image';
+                            progInput.click();
+                        }}, icon('upload'), t('flInstallStock')),
+                        el('button', {onclick: () => {
+                            progExpect = 'backup';
+                            progInput.click();
+                        }}, icon('upload'), t('flFactoryProgram')),
+                        el('button', {onclick: () => dataInput.click()}, icon('upload'), t('flFactoryData'))),
+                    el('p', {class: 'muted id-hint'}, t('flFactoryFile')),
+                    el('p', {class: 'muted id-hint'}, t('flFactoryHint'))),
                 card(t('flProgramsCard'), t('flProgramsIntro'),
                     el('div', {class: 'id-sources'},
                         el('button', {onclick: () => downloadBin('updater.bin', updaterImage)}, icon('download'),

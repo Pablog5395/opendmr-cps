@@ -672,6 +672,8 @@ const TEXTS = {
         'Writes opendmr.bin over the programming cable, without the PTT + SK1 upgrade mode. Only the firmware area (0xC000 and up) changes: the bootloader and the factory calibration stay as they are. Each sector is compared by CRC, only the different ones written, and all read back.',
         'Escribe opendmr.bin por el cable, sin el modo upgrade (PTT + SK1). Solo cambia el área de firmware (0xC000 en adelante): el bootloader y la calibración de fábrica no se tocan. Cada sector se compara por CRC, solo se escriben los distintos y después se releen todos.'],
     flUpdate: ['更新', 'Update', 'Actualizar'],
+    flInstall: ['安装', 'Install', 'Instalar'],
+    flInstallAll: ['安装 / 全部重写', 'Install / rewrite all', 'Instalar / reescribir todo'],
     flUpdateAll: ['全部写入', 'Write all', 'Escribir todo'],
     flUpdateHint: [
         '电台开机、连着线、不在发射。更新完自动重启。',
@@ -710,6 +712,41 @@ const TEXTS = {
         '关掉电台，然后开机（30 秒内）。画面黑屏、指示灯灭就对了。',
         'Switch the radio off, then on (within 30 s): a black screen and the LED off is right.',
         'Apagá la radio y prendela (dentro de 30 s): pantalla negra y LED apagado es lo correcto.'],
+    flBootCard: [
+        '引导程序：装到原厂电台 / 恢复出厂',
+        'Bootloader: install on a stock radio / back to factory',
+        'Bootloader: instalar en una radio original / volver a fábrica'],
+    flBootIntro: [
+        '这两个都要把电台先关机（按钮按下后再开机，30 秒内）。写的是程序 Flash 的 0xC000 以上，引导程序不动。',
+        'Both need the radio switched off (press the button, then switch it on within 30 s). They write the program flash above 0xC000; the bootloader stays as it is.',
+        'Las dos piden apagar la radio (apretás el botón y la prendés dentro de 30 s). Escriben el programa desde 0xC000; el bootloader no se toca.'],
+    flInstallStock: [
+        '把 OpenDMR 装到原厂固件的电台（选 opendmr.bin）',
+        'Install OpenDMR on a stock radio (pick opendmr.bin)',
+        'Instalar OpenDMR en una radio original (elegí opendmr.bin)'],
+    flFactoryCard: ['恢复出厂（原厂固件）', 'Back to factory (stock firmware)', 'Volver a fábrica (firmware original)'],
+    flFactoryIntro: [
+        '把电台恢复成装 OpenDMR 之前的样子：要用这台电台自己备份的程序 Flash（装之前做的），可选数据 Flash。别的电台的备份不能用。',
+        'Puts the radio back as it was before OpenDMR: needs this radio\'s own program flash backup (made before installing), and the data flash one if you want it too. Another radio\'s backup is not for this one.',
+        'Deja la radio como estaba antes de instalar OpenDMR: hace falta la copia de la flash de programa de esta misma radio (hecha antes de instalar), y la de datos si también la querés. La copia de otra radio no sirve.'],
+    flFactoryProgram: ['选择原厂程序 Flash 备份…', 'Choose the stock program flash backup…', 'Elegir la copia del programa original…'],
+    flFactoryData: ['选择原厂数据 Flash 备份…', 'Choose the stock data flash backup…', 'Elegir la copia de datos original…'],
+    flFactoryFile: [
+        '选安装前那台电台自己备份的程序 Flash（1 MB）。',
+        'Pick the 1 MB program flash backup made from this radio before installing.',
+        'Elegí la copia de 1 MB del programa hecha en esta misma radio antes de instalar.'],
+    flWrongFileImage: [
+        '那个文件是 1 MB 的备份：用「恢复出厂」，不是「安装」。',
+        'That file is a 1 MB backup: use "Back to factory", not "Install".',
+        'Ese archivo es una copia de 1 MB: usá «Volver a fábrica», no «Instalar».'],
+    flWrongFileFactory: [
+        '那个文件不是 1 MB 的备份：用「安装」，不是「恢复出厂」。',
+        'That file is not a 1 MB backup: use "Install", not "Back to factory".',
+        'Ese archivo no es una copia de 1 MB: usá «Instalar», no «Volver a fábrica».'],
+    flFactoryHint: [
+        '写原厂程序 Flash 时，0xC000 以下的引导程序不动（原厂和 OpenDMR 是同一个）。没有备份就回不去：所以要先做三份备份。',
+        'Writing the stock program flash leaves the bootloader below 0xC000 alone (it is the same in both). Without the backup there is no way back: that is why the three backups come first.',
+        'Al escribir el programa original, el bootloader debajo de 0xC000 queda como está (es el mismo en las dos). Sin la copia no hay vuelta atrás: por eso primero van las tres copias.'],
     flRestoreCard: ['写回备份', 'Write a backup back', 'Escribir una copia de vuelta'],
     flRestoreIntro: [
         '选一个之前存下的文件：只写和电台不同的扇区，写完再全部校验。',
@@ -738,6 +775,10 @@ const TEXTS = {
         'opendmr.bin 从 OpenDMR 的发布页下载',
         'opendmr.bin from the OpenDMR releases',
         'opendmr.bin en las releases de OpenDMR'],
+    flFirmwareInFolder: [
+        'En el paquete, el firmware ya viene en la carpeta firmware/ (por ejemplo opendmr-0.6.1.bin): elegilo de ahí.',
+        'In the package the firmware is already in the firmware/ folder (e.g. opendmr-0.6.1.bin): pick it from there.',
+        'En el paquete el firmware ya viene en la carpeta firmware/ (por ejemplo opendmr-0.6.1.bin): elegilo de ahí.'],
     flFirmwareLinkHint: [
         '上面的「更新固件」就是要这个文件（不是 BFUV32 的那个）。',
         'The "Firmware update" above takes this file (not the BFUV32 one).',

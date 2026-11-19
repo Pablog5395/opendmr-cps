@@ -10,6 +10,10 @@
   programs (update program and flash reader) are read from `assets/` when the page is served from a folder, or from
   identical copies embedded in the page when opened from disk; the page offers them as downloads (`updater.bin`,
   `dumper.bin`) and links to the OpenDMR releases for `opendmr.bin`.
+- Flasher, the three ways to write, now apart: **Update** (only the sectors that differ), **Install / rewrite all**
+  (every sector of the firmware area) and **Bootloader** (radio off, then on): install OpenDMR on a stock radio
+  (`opendmr.bin`, written from 0xC000) and back to factory (the radio's own program flash backup, and the data flash
+  one if wanted). The factory buttons check they get the right file.
   刷写页（新）：不用 PTT + SK1 升级模式，直接通过写频线更新固件（和 tools/debug/fw_update.py 同一套协议，现在在浏览器里）；
   以及三份备份：码表和设置、程序 Flash（固件和引导程序）、整块 16 MB 数据 Flash（码表、设置、卫星和出厂校准扇区），走芯片引导程序，
   和 tools/backup/dm32_dump.py 一样。备份可以在页面里写回：只写不同的扇区，写完全部校验。电台端的程序（更新程序、读 Flash 程序）

@@ -41,8 +41,8 @@ export function prepareImage(bytes) {
     if (image.length >= 9 && String.fromCharCode(...image.subarray(0, 9)) === 'BFUV32-V2') {
         image = image.subarray(0x100);
     }
-    const text = String.fromCharCode(...image.subarray(0, Math.min(image.length, 8192)));
-    if (!text.includes(LOADER_MARKER)) {
+    // the marker is wherever the linker put it (0x489F8 in 0.6.1): the whole image is looked at, as fw_update.py does
+    if (findBytes(image, new TextEncoder().encode(LOADER_MARKER)) < 0) {
         throw new Error('not an OpenDMR firmware with the cable update loader: not written');
     }
     if (FLASH_BASE + image.length > FLASH_END) {
@@ -322,6 +322,20 @@ export class Updater {
         await this.restart();
         return written;
     }
+}
+
+// The first place needle is in haystack, or -1
+export function findBytes(haystack, needle) {
+    outer:
+    for (let i = 0; i + needle.length <= haystack.length; i++) {
+        for (let k = 0; k < needle.length; k++) {
+            if (haystack[i + k] !== needle[k]) {
+                continue outer;
+            }
+        }
+        return i;
+    }
+    return -1;
 }
 
 function u8(v) {

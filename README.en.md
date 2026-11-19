@@ -36,6 +36,11 @@ The **Flasher** page at the bottom of the sidebar:
 - **Writing a backup back**: only the sectors that differ are written, then all compared; writing the program flash
   leaves the bootloader below 0xC000 alone.
 
+Three ways to write: **Update** (the sectors that differ), **Install / rewrite all** (the whole firmware area) and
+**Bootloader** (radio off, then on): install OpenDMR on a stock radio (`opendmr.bin`, written from 0xC000) or go
+back to factory (the radio's own program flash backup, plus the data flash one if wanted). The factory buttons
+check they get the right file.
+
 The two programs the radio runs are in `assets/` (`updater.bin`, `dumper.bin`): served from the folder
 (`py serve.py`) the page reads those files; opened from disk (`opendmr-cps.html`, file:// does not allow reading
 files) it uses identical copies embedded in the page. After rebuilding either, run `py tools/web/embed_bin.py`:

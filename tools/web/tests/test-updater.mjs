@@ -186,9 +186,21 @@ const radio = new SimRadio();
 const port = new FakePort(radio);
 const updater = new Updater(port);
 
-const image = new Uint8Array(12 * 4096).fill(0x11);
-image.set(new TextEncoder().encode('DM32-SERIAL-UPDATE-LOADER-1'), 0x20);
+const image = new Uint8Array(128 * 4096).fill(0x11); // 512 KB: past 0x489F8
+image.set(new TextEncoder().encode('DM32-SERIAL-UPDATE-LOADER-1'), 0x489F8); // where 0.6.1 has it, not near the start
 const prepared = prepareImage(image);
+
+// not a firmware with the loader: refused
+let refused = false;
+try {
+    prepareImage(new Uint8Array(8192));
+} catch (e) {
+    refused = true;
+}
+if (!refused) {
+    console.log('an image without the loader marker was accepted');
+    process.exit(1);
+}
 console.log('image', prepared.length, 'bytes,', prepared.length / 4096, 'sectors');
 
 await updater.open();
