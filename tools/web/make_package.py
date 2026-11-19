@@ -4,7 +4,7 @@
   py tools/web/make_package.py
 
   OpenDMR-CPS/
-    Abrir CPS.bat        double-click: the page in the browser (Chrome or Edge)
+    Abrir CPS.bat        double-click: the page in Chrome or Edge (Firefox cannot use the cable)
     LEEME-PRIMERO.html   the guide (Spanish, then English), formatted
     LEEME-PRIMERO.txt    the same, plain text
     opendmr-cps.html     the whole CPS and the flasher in one file
@@ -22,10 +22,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'dist' / 'paquete' / 'OpenDMR-CPS'
 
-BAT = """@echo off
-rem OpenDMR CPS y flasher: abre la pagina en el navegador (Chrome o Edge)
+BAT = r"""@echo off
+rem OpenDMR CPS y flasher: abre la pagina en Chrome o Edge (Firefox no puede hablar por el cable)
 cd /d "%~dp0"
-start "" "opendmr-cps.html"
+set "CHROME=%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+if exist "%CHROME%" goto chrome
+set "CHROME=%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
+if exist "%CHROME%" goto chrome
+set "CHROME=%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+if exist "%CHROME%" goto chrome
+set "EDGE=%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
+if exist "%EDGE%" goto edge
+set "EDGE=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
+if exist "%EDGE%" goto edge
+rem sin Chrome ni Edge: el navegador predeterminado
+start "" "%~dp0opendmr-cps.html"
+exit /b
+:chrome
+start "" "%CHROME%" "%~dp0opendmr-cps.html"
+exit /b
+:edge
+start "" "%EDGE%" "%~dp0opendmr-cps.html"
+exit /b
 """
 
 LEEME_TXT = """OpenDMR CPS + Flasher  (OpenDMR 0.6.1 en adelante)
@@ -153,7 +171,7 @@ Hacé las tres, en este orden:</p>
   <li>Apretá <span class="btn">Actualizar</span>. La radio se reinicia sola al terminar.</li>
 </ol>
 <p class="muted">Sólo cambia el área de firmware: el bootloader y la calibración no se tocan. Cada sector se compara
-primero, así que si ya está esa versión escribe 0 sectores. <b>No</b> transmite mientras actualiza, y no la apagues
+primero, así que si ya está esa versión escribe 0 sectores. <b>No</b> transmitas mientras actualiza, y no la apagues
 en el medio.</p>
 
 <h2>4. Los programas de la radio</h2>
