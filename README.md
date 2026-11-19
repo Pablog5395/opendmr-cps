@@ -35,6 +35,10 @@
 要一个可以直接上传的文件夹版本：`py tools/web/make_folder.py` 生成 `dist/web/`（页面源码 + `js/` + `assets/` +
 `serve.py`），放进任何 HTTP 服务器即可。
 
+要发给不太懂电脑的人：`py tools/web/make_package.py` 生成 `dist/paquete/OpenDMR-CPS/`（`Abrir CPS.bat`、
+`opendmr-cps.html`、`programas/` 里的两个 bin、`LEEME-PRIMERO.txt`）和同名 zip：解压，双击 `Abrir CPS.bat` 就行，
+不用装任何东西。
+
 ## 使用
 
 1. 用 **Chrome 或 Edge** 打开（需要 Web Serial），两种方式任选：

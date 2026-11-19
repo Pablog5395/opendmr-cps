@@ -44,6 +44,10 @@ it updates `assets/` and the embedded copies together.
 For a folder to upload: `py tools/web/make_folder.py` makes `dist/web/` (the page's sources + `js/` + `assets/`
 + `serve.py`), ready for any HTTP server.
 
+To hand it to someone who does not know computers: `py tools/web/make_package.py` makes
+`dist/paquete/OpenDMR-CPS/` (`Abrir CPS.bat`, `opendmr-cps.html`, the two bins in `programas/`,
+`LEEME-PRIMERO.txt`) and the same as a zip: unzip, double-click `Abrir CPS.bat`, nothing to install.
+
 ## Use
 
 1. Open it in **Chrome or Edge** (Web Serial), either way:
