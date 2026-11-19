@@ -724,6 +724,24 @@ const TEXTS = {
     flRestoreDone: ['写回完成', 'Written back', 'Escrito de vuelta'],
     flBadBackup: ['这个文件不是备份（大小不是 4 KB 的倍数）', 'That file is not a backup (not a multiple of 4 KB)',
         'Ese archivo no es una copia (no es múltiplo de 4 KB)'],
+    flProgramsCard: ['电台端程序', 'Radio-side programs', 'Programas de la radio'],
+    flProgramsIntro: [
+        '更新程序和读 Flash 程序。页面用 assets/ 里的文件，从磁盘打开时用内置的同一份；这里可以下载出来放到 assets/ 里。',
+        'The update program and the flash reader. The page reads them from assets/, or uses the embedded copy opened from disk; download them here to put them in assets/.',
+        'El programa de actualización y el lector de Flash. La página los lee de assets/, o usa la copia embebida si se abre desde el disco; acá los podés descargar para ponerlos en assets/.'],
+    flDownload: ['下载', 'Download', 'Descargar'],
+    flProgramsHint: [
+        '两个都是工具源码编译出来的（tools/debug/updater/、tools/backup/dumper/）；在网页里写进电台的 RAM，不写进 Flash。',
+        'Both are built from the tool sources (tools/debug/updater/, tools/backup/dumper/); the page loads them into the radio\'s RAM, not the flash.',
+        'Los dos salen de las fuentes de las herramientas (tools/debug/updater/, tools/backup/dumper/); la página los carga en la RAM de la radio, no en la flash.'],
+    flFirmwareLink: [
+        'opendmr.bin 从 OpenDMR 的发布页下载',
+        'opendmr.bin from the OpenDMR releases',
+        'opendmr.bin en las releases de OpenDMR'],
+    flFirmwareLinkHint: [
+        '上面的「更新固件」就是要这个文件（不是 BFUV32 的那个）。',
+        'The "Firmware update" above takes this file (not the BFUV32 one).',
+        'El «Actualizar firmware» de arriba usa este archivo (no el de BFUV32).'],
     flProgramsFiles: ['电台端程序：用 assets/ 里的文件', 'Radio-side programs: the files in assets/',
         'Programas de la radio: los archivos de assets/'],
     flProgramsEmbedded: ['电台端程序：内置副本（页面从磁盘打开时用）', 'Radio-side programs: the embedded copies (page opened from disk)',

@@ -58,8 +58,38 @@ const cards = [...main.querySelectorAll('.card-title')].map((h) => h.textContent
 const buttons = [...main.querySelectorAll('button')].map((b) => b.textContent.trim());
 console.log('cards:', JSON.stringify(cards));
 console.log('buttons:', JSON.stringify(buttons));
-if (cards.length !== 4) {
-    errors.push('expected 4 cards, got ' + cards.length);
+if (cards.length !== 5) {
+    errors.push('expected 5 cards, got ' + cards.length);
+}
+if (!buttons.some((b) => b.includes('updater.bin')) || !buttons.some((b) => b.includes('dumper.bin'))) {
+    errors.push('the two program downloads are missing');
+}
+if (!main.querySelector('a[href*="OpenDMR/releases"]')) {
+    errors.push('the releases link is missing');
+}
+
+// los dos botones de descarga: pulsan y bajan el archivo (en jsdom, como data URL)
+const before = main.querySelectorAll('a[download]').length;
+for (const name of ['updater.bin', 'dumper.bin']) {
+    const b = [...main.querySelectorAll('button')].find((x) => x.textContent.includes(name));
+    b.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+}
+const links = [...document.querySelectorAll('a[download]')];
+console.log('descargas:', links.map((a) => a.download + ' ' + a.getAttribute('href').slice(0, 24)).join(' | '));
+if (links.length < before + 2) {
+    errors.push('the download links were not made');
+}
+const updaterLink = links.find((a) => a.download === 'updater.bin');
+if (!updaterLink || !/^(blob:|data:)/.test(updaterLink.getAttribute('href'))) {
+    errors.push('updater.bin did not download');
+} else if (updaterLink.getAttribute('href').startsWith('blob:')) {
+    // el blob de Node: los bytes tienen que ser los del .bin
+    const bytes = new Uint8Array(await (await fetch(updaterLink.getAttribute('href'))).arrayBuffer());
+    const disk = readFileSync(new URL('../../../assets/updater.bin', import.meta.url));
+    if (bytes.length !== disk.length || !bytes.every((v, i) => v === disk[i])) {
+        errors.push('updater.bin downloaded different bytes');
+    }
 }
 if (buttons.length < 7) {
     errors.push('not enough buttons');

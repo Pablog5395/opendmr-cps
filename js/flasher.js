@@ -7,7 +7,7 @@ import {icon} from './icons.js';
 import {RawPort} from './radio/serial.js';
 import {Updater, prepareImage} from './radio/updater.js';
 import {Bootloader, CHIP_DATA, CHIP_PROGRAM} from './radio/bootloader.js';
-import {sources, updaterImage} from './radio/assets.js';
+import {sources, updaterImage, dumperImage} from './radio/assets.js';
 import * as L from './codeplug/layout.js';
 
 const PROGRAM_SIZE = 1 << 20;          // the GD25Q80
@@ -26,13 +26,36 @@ export function createFlasher(deps) {
 
     function download(name, data) {
         const blob = new Blob([data], {type: 'application/octet-stream'});
-        const a = el('a', {href: URL.createObjectURL(blob), download: name});
+        const url = (typeof URL.createObjectURL === 'function') ? URL.createObjectURL(blob) : dataUrl(data);
+        const a = el('a', {href: url, download: name});
         document.body.append(a);
         a.click();
         setTimeout(() => {
-            URL.revokeObjectURL(a.href);
+            if (typeof URL.revokeObjectURL === 'function') {
+                URL.revokeObjectURL(url);
+            }
             a.remove();
         }, 1000);
+    }
+
+    // A browser without createObjectURL (an old one, or a test): the bytes as a data URL
+    function dataUrl(data) {
+        let text = '';
+        for (let i = 0; i < data.length; i += 0x8000) {
+            text += String.fromCharCode(...data.subarray(i, i + 0x8000));
+        }
+        return 'data:application/octet-stream;base64,' + btoa(text);
+    }
+
+    // the two radio-side programs, whichever copy the page has (assets/ or embedded): the file to keep or to put in assets/
+    async function downloadBin(name, loader) {
+        try {
+            const data = await loader();
+            download(name, data);
+            toast(`${name}: ${data.length} bytes`, 4000);
+        } catch (e) {
+            toast(t('error') + ': ' + (e?.message || e), 8000);
+        }
     }
 
     function radioName() {
@@ -276,6 +299,19 @@ export function createFlasher(deps) {
                         el('button', {onclick: () => progInput.click()}, icon('upload'), t('flRestoreProgram')),
                         el('button', {onclick: () => dataInput.click()}, icon('upload'), t('flRestoreData'))),
                     el('p', {class: 'muted id-hint'}, t('flRestoreHint'))),
+                card(t('flProgramsCard'), t('flProgramsIntro'),
+                    el('div', {class: 'id-sources'},
+                        el('button', {onclick: () => downloadBin('updater.bin', updaterImage)}, icon('download'),
+                            `updater.bin · ${t('flDownload')}`),
+                        el('button', {onclick: () => downloadBin('dumper.bin', dumperImage)}, icon('download'),
+                            `dumper.bin · ${t('flDownload')}`)),
+                    el('p', {class: 'muted'}, state.assetSource === 'assets'
+                        ? t('flProgramsFiles') : state.assetSource === 'embedded' ? t('flProgramsEmbedded') : ''),
+                    el('p', {class: 'muted'},
+                        el('a', {href: 'https://github.com/va3bpf/OpenDMR/releases', target: '_blank', rel: 'noopener'},
+                            t('flFirmwareLink'))),
+                    el('p', {class: 'muted id-hint'}, t('flFirmwareLinkHint')),
+                    el('p', {class: 'muted id-hint'}, t('flProgramsHint'))),
                 card(t('flNotesCard'),
                     el('ul', {class: 'fl-notes'},
                         el('li', {}, t('flNote1')),
