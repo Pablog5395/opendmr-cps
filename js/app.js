@@ -17,6 +17,7 @@ import * as ODDB from './codeplug/oddb.js';
 import * as gb from './gb2312.js';
 import * as CSV from './codeplug/csv.js';
 import {makeZip, readZip, isZip} from './codeplug/zip.js';
+import {createFlasher} from './flasher.js';
 
 const FILE_MAGIC = 'OPENDMR-CPS 1\n'; // our codeplug file: this line, then the window image (layout.js IMAGE_SIZE)
 
@@ -232,7 +233,7 @@ function render() {
     main.replaceChildren();
     ({channels: viewChannels, zones: viewZones, contacts: viewContacts, rxGroups: viewRxGroups, vfo: viewVfo,
         general: viewGeneral, radioSettings: viewRadioSettings, satellites: viewSatellites, dmrIds: viewDmrIds,
-        lockouts: viewLockouts, aprs: viewAprs, debug: viewDebug, themes: viewThemes})[tab](main);
+        lockouts: viewLockouts, aprs: viewAprs, debug: viewDebug, themes: viewThemes, flasher: flasherView.view})[tab](main);
 }
 
 function pageHead(title, ...rest) {
@@ -2750,6 +2751,24 @@ async function importCsv(fileList) {
         el('textarea', {rows: Math.min(16, lines.length + 1), readOnly: true, value: lines.join('\n')})),
     [[t('close'), null, 'primary']]);
 }
+
+/* ---- the flasher ---- */
+
+// The cable link closed from the flasher (the update and the bootloader take the port at the byte level)
+async function disconnectLink() {
+    if (link) {
+        await link.close().catch(() => {});
+    }
+    link = null;
+    radio = null;
+    setConnected(false);
+    status(t('notConnected'));
+}
+
+const flasherView = createFlasher({
+    el, pageHead, toast, status, progress, getLink: () => link, getRadio: () => radio, disconnect: disconnectLink,
+    rerender: () => render(),
+});
 
 /* ---- start ---- */
 

@@ -1,5 +1,18 @@
 # Changelog / 版本记录
 
+## 0.10.0 (2026-11-19)
+
+- Flasher page (new): firmware update over the programming cable without the PTT + SK1 upgrade mode (the same
+  protocol as tools/debug/fw_update.py, now in the browser), and the three backups of the radio: the codeplug and
+  settings, the program flash (firmware and bootloader) and the whole 16 MB data flash (codeplug, settings, satellites
+  and the factory calibration sector), read through the chip bootloader as tools/backup/dm32_dump.py does. A backup
+  can be written back from the page; the sectors that differ only are written, then all compared. The radio-side
+  programs (update program and flash reader) are embedded: nothing to download.
+  刷写页（新）：不用 PTT + SK1 升级模式，直接通过写频线更新固件（和 tools/debug/fw_update.py 同一套协议，现在在浏览器里）；
+  以及三份备份：码表和设置、程序 Flash（固件和引导程序）、整块 16 MB 数据 Flash（码表、设置、卫星和出厂校准扇区），走芯片引导程序，
+  和 tools/backup/dm32_dump.py 一样。备份可以在页面里写回：只写不同的扇区，写完全部校验。电台端的程序（更新程序、读 Flash 程序）
+  已经内置，不用另外下载。
+
 ## 0.9.0 (2026-11-19)
 
 - Themes page: make your own colour themes for the radio (up to 8), recolour a built-in theme or hide it from the

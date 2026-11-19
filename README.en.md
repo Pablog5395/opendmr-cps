@@ -22,6 +22,22 @@ Current version **0.7.1** ([changelog](CHANGELOG.md)).
   (OpenDMR 0.6.0 and later)
 - 中文 / English / Español interface, dark mode
 
+## Flasher and backups
+
+The **Flasher** page at the bottom of the sidebar:
+
+- **Firmware update**: pick `opendmr.bin` and write it over the programming cable, without the PTT + SK1 upgrade
+  mode. Only the firmware area (0xC000 and up) changes: the bootloader and the factory calibration stay as they are.
+  Each sector is compared by CRC, only the different ones written, and all read back. The same protocol as
+  `tools/debug/fw_update.py`.
+- **The three backups**: the codeplug and settings (radio on, seconds), the program flash (1 MB: firmware and
+  bootloader) and the data flash (16 MB: codeplug, settings, satellites and the factory calibration sector). The last
+  two go through the chip bootloader: switch the radio off, the page waits for it at power on.
+- **Writing a backup back**: only the sectors that differ are written, then all compared; writing the program flash
+  leaves the bootloader below 0xC000 alone.
+
+The two programs the radio runs (update program and flash reader) are embedded in the page: nothing to download.
+
 ## Use
 
 1. Open it in **Chrome or Edge** (Web Serial), either way:
