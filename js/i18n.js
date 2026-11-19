@@ -673,6 +673,13 @@ const TEXTS = {
         'Escribe opendmr.bin por el cable, sin el modo upgrade (PTT + SK1). Solo cambia el área de firmware (0xC000 en adelante): el bootloader y la calibración de fábrica no se tocan. Cada sector se compara por CRC, solo se escriben los distintos y después se releen todos.'],
     flUpdate: ['更新', 'Update', 'Actualizar'],
     flInstall: ['安装', 'Install', 'Instalar'],
+    flUseOther: ['换一个文件…', 'Use another file…', 'Usar otro archivo…'],
+    flFirmwareIncluded: [
+        '包里带来的固件', 'The firmware in this package', 'El firmware que viene en este paquete'],
+    flFirmwareIncludedHint: [
+        '不用找文件：直接点「更新」或「安装 / 全部重写」。要别的版本再用下面的「换一个文件…」。',
+        'Nothing to look for: press "Update" or "Install / rewrite all" right away. For another version, "Use another file…" below.',
+        'No hay que buscar nada: apretá «Actualizar» o «Instalar / reescribir todo» directamente. Para otra versión, «Usar otro archivo…» abajo.'],
     flInstallAll: ['安装 / 全部重写', 'Install / rewrite all', 'Instalar / reescribir todo'],
     flUpdateAll: ['全部写入', 'Write all', 'Escribir todo'],
     flUpdateHint: [

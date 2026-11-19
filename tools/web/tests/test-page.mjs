@@ -23,7 +23,7 @@ const bundle = join(mkdtempSync(join(tmpdir(), 'cps-test-')), 'bundle.mjs');
 writeFileSync(bundle, script);
 
 const shell = readFileSync(join(ROOT, 'index.html'), 'utf8').replace(/<script[\s\S]*?<\/script>/g, '');
-const dom = new JSDOM(shell, {url: 'http://localhost/'});
+const dom = new JSDOM(shell, {url: process.env.WEB || 'http://localhost/'});
 const {window} = dom;
 
 const define = (name, value) => Object.defineProperty(globalThis, name, {value, configurable: true, writable: true});
@@ -39,6 +39,18 @@ define('Element', window.Element);
 define('Event', window.Event);
 define('getComputedStyle', window.getComputedStyle.bind(window));
 window.isSecureContext = true;
+
+// PKG=1: the package's page, with the firmware inside (make_package.py), so the flasher has nothing to look for
+if (process.env.PKG) {
+    const packed = readFileSync(join(ROOT, 'dist', 'paquete', 'OpenDMR-CPS', 'opendmr-cps.html'), 'utf8');
+    const found = packed.match(/window\.__OPENDMR_FIRMWARE = (\{[\s\S]*?\});<\/script>/);
+    if (!found) {
+        console.log('the package page has no embedded firmware');
+        process.exit(1);
+    }
+    window.__OPENDMR_FIRMWARE = JSON.parse(found[1]);
+    console.log('paquete:', window.__OPENDMR_FIRMWARE.name, window.__OPENDMR_FIRMWARE.b64.length, 'b64');
+}
 window.navigator.serial = {
     requestPort: async () => {
         throw new Error('no port in the test');
@@ -94,8 +106,17 @@ if (!updaterLink || !/^(blob:|data:)/.test(updaterLink.getAttribute('href'))) {
 if (buttons.length < 7) {
     errors.push('not enough buttons');
 }
-if (!text.includes('opendmr.bin')) {
+if (!text.includes('opendmr.bin') && !text.includes('opendmr-')) {
     errors.push('the firmware hint is missing');
+}
+if (process.env.PKG) {
+    const update = [...main.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Update');
+    if (!update || update.disabled) {
+        errors.push('the package firmware is not offered (Update disabled)');
+    }
+    if (!text.includes('opendmr-0.6.1.bin')) {
+        errors.push('the package firmware name is not shown');
+    }
 }
 if (/fl[A-Z]\w+/.test(text)) {
     errors.push('untranslated keys: ' + text.match(/fl[A-Z]\w+/g).join(', '));

@@ -4,3 +4,4 @@ node_modules/
 opendmr-cps-debug.html
 __pycache__/
 dist/
+firmware/*.bin

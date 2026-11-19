@@ -7,7 +7,8 @@
     Abrir CPS.bat        double-click: the page in Chrome or Edge (Firefox cannot use the cable)
     LEEME-PRIMERO.html   the guide (Spanish, then English), formatted
     LEEME-PRIMERO.txt    the same, plain text
-    opendmr-cps.html     the whole CPS and the flasher in one file
+    opendmr-cps.html     the whole CPS and the flasher in one file, with the firmware inside
+                         (window.__OPENDMR_FIRMWARE): "Update" needs no file to look for
     programas/
       updater.bin        the radio's update program, as the flasher uses it
       dumper.bin         the flash reader
@@ -16,6 +17,7 @@ The page works from a disk file: the two programs are also inside it (the same b
 seen and kept. The folder is also written as OpenDMR-CPS.zip, one file to send.
 """
 import argparse
+import base64
 import hashlib
 import io
 import json
@@ -181,12 +183,12 @@ Hacé las tres, en este orden:</p>
 
 <h2>3. Actualizar el firmware</h2>
 <ol class="steps">
-  <li><b>Ya viene en este paquete</b>: <code>firmware\opendmr-0.6.1.bin</code> (adentro de esa carpeta está la
+  <li><b>Ya viene en este paquete</b>: <code>firmware/opendmr-0.6.1.bin</code> (adentro de esa carpeta está la
       versión y el SHA-256). Si querés otra versión, bajala de las releases de OpenDMR:
       <a href="https://github.com/va3bpf/OpenDMR/releases">github.com/va3bpf/OpenDMR/releases</a>
       (es el <code>opendmr.bin</code>, <b>no</b> el que dice BFUV32).</li>
   <li>En <b>Flasher</b> → <b>«Actualización de firmware»</b>: <span class="btn">Elegir firmware…</span> y elegí
-      <code>firmware\opendmr-0.6.1.bin</code>.</li>
+      <code>firmware/opendmr-0.6.1.bin</code>.</li>
   <li>Apretá <span class="btn">Actualizar</span>. La radio se reinicia sola al terminar.</li>
 </ol>
 <p class="muted">Sólo cambia el área de firmware: el bootloader y la calibración no se tocan. Cada sector se compara
@@ -198,7 +200,7 @@ en el medio.</p>
 lo pida (30 segundos; pantalla negra y LED apagado es lo correcto).</p>
 <table>
   <tr><th>Botón</th><th>Archivo que pide</th><th>Cuándo</th></tr>
-  <tr><td><b>Instalar OpenDMR en una radio original</b></td><td><code>firmware\opendmr-0.6.1.bin</code></td>
+  <tr><td><b>Instalar OpenDMR en una radio original</b></td><td><code>firmware/opendmr-0.6.1.bin</code></td>
       <td>la radio todavía tiene el firmware de fábrica (el de Baofeng)</td></tr>
   <tr><td><b>Volver a fábrica</b></td><td>la copia de <b>Flash de programa</b> de <b>esta</b> radio (1 MB)</td>
       <td>querés dejar la radio como vino de fábrica</td></tr>
@@ -244,7 +246,7 @@ para descargarlos (también van en la carpeta <code>programas\\</code>). Los usa
       <code>COM…</code> port.</li>
   <li>Before flashing anything, open <b>Flasher</b> and make the three backups (codeplug, program flash, data flash);
       keep them with the radio's serial number: a backup only fits its own radio.</li>
-  <li>The firmware comes in this package: <code>firmware\opendmr-0.6.1.bin</code> (its LEEME has the version and
+  <li>The firmware comes in this package: <code>firmware/opendmr-0.6.1.bin</code> (its LEEME has the version and
       the SHA-256); in the flasher, "Choose firmware…" and pick it. Other versions:
       <a href="https://github.com/va3bpf/OpenDMR/releases">github.com/va3bpf/OpenDMR/releases</a> (not the BFUV32 one).</li>
 </ol>
@@ -258,13 +260,13 @@ para descargarlos (también van en la carpeta <code>programas\\</code>). Los usa
 
 def find_firmware(given=None):
     """The firmware to put in the package: the file given, the one in firmware/ of this repository, or opendmr.bin from
-    the latest OpenDMR release. Returns (tag, bytes)."""
+    the latest OpenDMR release. Returns (name, bytes)."""
     if given:
         path = Path(given)
-        return 'opendmr', path.read_bytes()
+        return path.name, path.read_bytes()
     local = sorted((ROOT / 'firmware').glob('*.bin')) if (ROOT / 'firmware').exists() else []
     if local:
-        return 'opendmr', local[0].read_bytes()
+        return local[0].name, local[0].read_bytes()
     print('firmware: fetching the latest release from GitHub ...')
     request = urllib.request.Request(RELEASE_API, headers={'User-Agent': 'opendmr-cps'})
     with urllib.request.urlopen(request, timeout=60) as reply:
@@ -275,8 +277,8 @@ def find_firmware(given=None):
                                                        headers={'User-Agent': 'opendmr-cps'}), timeout=600) as reply:
         data = reply.read()
     with zipfile.ZipFile(io.BytesIO(data)) as z:
-        name = next(n for n in z.namelist() if n.endswith('/opendmr.bin'))
-        return tag, z.read(name)
+        member = next(n for n in z.namelist() if n.endswith('/opendmr.bin'))
+        return f'opendmr-{tag[1:]}.bin' if tag.startswith('v') else 'opendmr.bin', z.read(member)
 
 
 def main():
@@ -288,22 +290,27 @@ def main():
         shutil.rmtree(OUT)
     (OUT / 'programas').mkdir(parents=True)
     (OUT / 'firmware').mkdir()
-    shutil.copyfile(ROOT / 'opendmr-cps.html', OUT / 'opendmr-cps.html')
+    # the page: the packed release with the firmware inside, so the flasher's buttons work with nothing to look for
+    firmware_name, firmware = find_firmware(args.firmware)
+    page = (ROOT / 'opendmr-cps.html').read_text(encoding='utf-8')
+    payload = json.dumps({'name': firmware_name, 'b64': base64.b64encode(firmware).decode('ascii')})
+    injected = ('<script>/* the firmware this package carries (make_package.py) */'
+                f'window.__OPENDMR_FIRMWARE = {payload};</script>')
+    assert '<body>' in page, 'the packed page has no <body>'
+    (OUT / 'opendmr-cps.html').write_text(page.replace('<body>', '<body>' + injected, 1),
+                                          encoding='utf-8', newline='\n')
     shutil.copyfile(ROOT / 'assets' / 'updater.bin', OUT / 'programas' / 'updater.bin')
     shutil.copyfile(ROOT / 'assets' / 'dumper.bin', OUT / 'programas' / 'dumper.bin')
-    tag, firmware = find_firmware(args.firmware)
-    version = tag if tag != 'opendmr' else 'opendmr'
-    firmware_name = f'opendmr-{version[1:]}.bin' if version.startswith('v') else 'opendmr.bin'
     (OUT / 'firmware' / firmware_name).write_bytes(firmware)
     digest = hashlib.sha256(firmware).hexdigest()
     (OUT / 'firmware' / 'LEEME.txt').write_text(
         f'{firmware_name}\n\n'
-        f'Firmware de OpenDMR {version} ({len(firmware)} bytes, de la release oficial de va3bpf/OpenDMR).\n'
+        f'Firmware de OpenDMR ({len(firmware)} bytes, de la release oficial de va3bpf/OpenDMR).\n'
         f'SHA-256: {digest}\n\n'
         'En la pagina: Flasher -> "Elegir firmware..." y elegi este archivo.\n'
         'Es el opendmr.bin, no el que dice BFUV32.\n',
         encoding='utf-8', newline='\r\n')
-    print(f'firmware: {firmware_name} ({len(firmware)} bytes, {version})')
+    print(f'firmware: {firmware_name} ({len(firmware)} bytes)')
 
     (OUT / 'LEEME-PRIMERO.txt').write_text(LEEME_TXT, encoding='utf-8', newline='\r\n')
     (OUT / 'LEEME-PRIMERO.html').write_text(LEEME_HTML, encoding='utf-8', newline='\r\n')

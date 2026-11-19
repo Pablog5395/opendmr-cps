@@ -37,7 +37,7 @@
 `py tools/web/embed_bin.py`：`assets/` 和内置副本一起更新。
 
 要一个可以直接上传的文件夹版本：`py tools/web/make_folder.py` 生成 `dist/web/`（页面源码 + `js/` + `assets/` +
-`serve.py`），放进任何 HTTP 服务器即可。
+`firmware/` + `serve.py`），放进任何 HTTP 服务器即可；页面自己读 `firmware/index.json`，不用选文件。
 
 要发给不太懂电脑的人：`py tools/web/make_package.py` 生成 `dist/paquete/OpenDMR-CPS/`（`Abrir CPS.bat`、
 `opendmr-cps.html`、`programas/` 里的两个 bin、排版好的 `LEEME-PRIMERO.html` 和纯文本版）和同名 zip：

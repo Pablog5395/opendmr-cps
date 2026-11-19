@@ -14,15 +14,72 @@ const PROGRAM_SIZE = 1 << 20;          // the GD25Q80
 const DATA_SIZE = 16 << 20;            // the 25Q128
 const FIRMWARE_BASE = 0xC000;          // where opendmr.bin starts in the program flash
 
+// The firmware the package's page carries (make_package.py puts it before the page's own script): {name, b64}. The
+// repo's page has none, and the flasher asks for a file as before.
+function packageFirmware() {
+    try {
+        const fw = typeof window !== 'undefined' ? window.__OPENDMR_FIRMWARE : null;
+        if (!fw?.b64) {
+            return null;
+        }
+        const bin = atob(fw.b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) {
+            bytes[i] = bin.charCodeAt(i);
+        }
+        return {name: fw.name || 'opendmr.bin', size: bytes.length, image: prepareImage(bytes)};
+    } catch (e) {
+        console.warn('the packaged firmware is not usable:', e);
+        return null;
+    }
+}
+
+// The firmware in the page's own folder (a web server, py serve.py, tools/web/make_folder.py): firmware/index.json
+// lists it. Nothing to look for either: it is loaded and offered as the one to write.
+async function folderFirmware() {
+    try {
+        const root = (typeof document !== 'undefined' && document.baseURI) ? document.baseURI : null;
+        if (!root || typeof fetch !== 'function') {
+            return null;
+        }
+        const index = await fetch(new URL('firmware/index.json', root), {cache: 'no-store'});
+        if (!index.ok) {
+            return null;
+        }
+        const list = await index.json();
+        const first = list?.[0];
+        if (!first?.name) {
+            return null;
+        }
+        const reply = await fetch(new URL('firmware/' + encodeURIComponent(first.name), root), {cache: 'no-store'});
+        if (!reply.ok) {
+            return null;
+        }
+        const bytes = new Uint8Array(await reply.arrayBuffer());
+        return {name: first.name, size: bytes.length, image: prepareImage(bytes)};
+    } catch (e) {
+        return null;
+    }
+}
+
 // deps: {el, pageHead, toast, status, progress, getLink, getRadio, disconnect, rerender}
 export function createFlasher(deps) {
     const {el, pageHead, toast, status, progress, getLink, getRadio, disconnect, rerender} = deps;
     const state = {
         busy: false,
         firmware: null,      // {name, size, image}
+        fromPackage: false,  // the firmware comes inside the page (the package's): no file to look for
         assetSource: null,   // 'assets' or 'embedded', once the page knows
         assetLoading: false,
+        firmwareTried: false,
     };
+
+    // The package's page (tools/web/make_package.py) carries the firmware in window.__OPENDMR_FIRMWARE
+    const included = packageFirmware();
+    if (included) {
+        state.firmware = included;
+        state.fromPackage = true;
+    }
 
     function download(name, data) {
         const blob = new Blob([data], {type: 'application/octet-stream'});
@@ -240,6 +297,7 @@ export function createFlasher(deps) {
             }
             try {
                 await pickFirmware(file);
+                state.fromPackage = false;
                 toast(`${state.firmware.name}: ${(state.firmware.size / 1024).toFixed(0)} KB`, 4000);
                 rerender();
             } catch (e) {
@@ -264,6 +322,18 @@ export function createFlasher(deps) {
             }
         });
 
+        // the firmware of the folder (served): offered without picking a file, as the package's page does
+        if (!state.firmware && !state.firmwareTried) {
+            state.firmwareTried = true;
+            folderFirmware().then((found) => {
+                if (found) {
+                    state.firmware = found;
+                    state.fromPackage = true;
+                    rerender();
+                }
+            });
+        }
+
         // the radio-side program: the file in assets/ when the page is served from a folder, the embedded copy from disk
         if (!state.assetSource && !state.assetLoading) {
             state.assetLoading = true;
@@ -280,14 +350,16 @@ export function createFlasher(deps) {
             el('div', {class: 'general-cards'},
                 card(t('flUpdateCard'), t('flUpdateIntro'),
                     el('div', {class: 'id-sources'},
-                        el('button', {onclick: () => fwInput.click()}, icon('open'), t('flChooseFile')),
-                        el('button', {class: 'primary', disabled: !state.firmware, onclick: () => withPort((p) => doUpdate(p, false))},
-                            icon('upload'), t('flUpdate')),
+                        el('button', {class: 'primary', disabled: !state.firmware,
+                            onclick: () => withPort((p) => doUpdate(p, false))}, icon('upload'), t('flUpdate')),
                         el('button', {disabled: !state.firmware, onclick: () => withPort((p) => doUpdate(p, true))},
-                            icon('upload'), t('flInstallAll'))),
+                            icon('upload'), t('flInstallAll')),
+                        el('button', {class: 'ghost', onclick: () => fwInput.click()}, icon('open'), t('flUseOther'))),
                     el('p', {class: 'muted'}, state.firmware
-                        ? `${state.firmware.name} · ${(state.firmware.size / 1024).toFixed(0)} KB`
+                        ? (state.fromPackage ? `${t('flFirmwareIncluded')}: ` : '') +
+                          `${state.firmware.name} · ${(state.firmware.size / 1024).toFixed(0)} KB`
                         : t('flNoFirmware')),
+                    state.fromPackage ? el('p', {class: 'muted id-hint'}, t('flFirmwareIncludedHint')) : null,
                     el('p', {class: 'muted id-hint'}, t('flUpdateHint')),
                     el('p', {class: 'muted id-hint'}, t('flFirmwareInFolder')),
                     state.assetSource ? el('p', {class: 'muted id-hint'},
