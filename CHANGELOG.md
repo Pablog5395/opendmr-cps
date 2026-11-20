@@ -1,5 +1,10 @@
 # Changelog / 版本记录
 
+## 0.10.1 (2026-11-20)
+
+- The APRS symbol list (94 symbols) and the update program's backlight fix, in a build whose version says so
+  (the sidebar's foot): two older single-file pages were still around and looked the same.
+
 ## 0.10.0 (2026-11-19)
 
 - Flasher page (new): firmware update over the programming cable without the PTT + SK1 upgrade mode (the same
