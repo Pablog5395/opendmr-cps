@@ -14,6 +14,9 @@
   (every sector of the firmware area) and **Bootloader** (radio off, then on): install OpenDMR on a stock radio
   (`opendmr.bin`, written from 0xC000) and back to factory (the radio's own program flash backup, and the data flash
   one if wanted). The factory buttons check they get the right file.
+- The radio's screen is lit while it updates: the update program now turns the backlight on at 100 % (the firmware
+  may have left it on PWM0 at the night brightness, and the screen was drawn but stayed dark). The flash reader
+  already did it.
 - The Flasher tab is the first in the sidebar. While it works, a panel at the top says what it is doing and how far
   it is (and the log keeps it), and the radio's own screen shows the same: its title, "Do not power off" and the
   percentage, in the update and in the bootloader reads and writes (`js/radio/screen.js`, the `T` pictures the

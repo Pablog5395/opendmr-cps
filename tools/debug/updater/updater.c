@@ -59,6 +59,13 @@
 
 #define CACHE_CIR (*(volatile uint32_t *)0xE000F004) // 1: invalidate all (crt0.S)
 
+// The LCD backlight: the firmware may have left it on PWM0 at a low duty (the night brightness), and here nothing
+// runs but this: it is put at 100 % as the flash reader does (dumper.c), or the screen is drawn and stays dark
+#define GPIOA_DR    (*(volatile uint32_t *)0x14020000)
+#define GPIOA_DDR   (*(volatile uint32_t *)0x14020004)
+#define IO_DIPLEX0  (*(volatile uint32_t *)0x11000034)
+#define BACKLIGHT_BIT (1u << 15) // GPIO A 15 (PIN_LCD_BKLIGHT), IO_DIPLEX0 bit 17 as GPIO
+
 #define UART0(offset) (*(volatile uint32_t *)(0x14030000 + (offset)))
 #define UART_RBR      0x00
 #define UART_THR      0x00
@@ -387,8 +394,17 @@ static void handle_picture(void)
     uart_put('T');
 }
 
+// The backlight on, at 100 %: as a GPIO (the pin may be on PWM0), the output high
+static void backlight_on(void)
+{
+    IO_DIPLEX0 |= (1u << 17); // the pin as a GPIO, not PWM0
+    GPIOA_DDR |= BACKLIGHT_BIT;
+    GPIOA_DR |= BACKLIGHT_BIT;
+}
+
 static void show_start(void)
 {
+    backlight_on();
     lcd_fill(0, 0, PANEL_WIDTH, PANEL_HEIGHT, BLACK);
     lcd_fill(BAR_X0, BAR_Y0, BAR_X1, BAR_Y1, WHITE);
     show_progress(0, 1, GREEN);
