@@ -795,6 +795,8 @@ const TEXTS = {
         'Programas de la radio: los archivos de assets/'],
     flProgramsEmbedded: ['电台端程序：内置副本（页面从磁盘打开时用）', 'Radio-side programs: the embedded copies (page opened from disk)',
         'Programas de la radio: las copias embebidas (página abierta desde el disco)'],
+    flWorking: ['正在处理', 'Working', 'Trabajando'],
+    idle: ['等待', 'Idle', 'En espera'],
     flLogCard: ['记录', 'Log', 'Registro'],
     flLogIntro: [
         '这里记下每一步（时间、动作、结果）。出错时把它存下来发给我。',

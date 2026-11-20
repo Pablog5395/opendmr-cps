@@ -10,6 +10,7 @@
 
 import {RawPort} from './serial.js';
 import {dumperImage} from './assets.js';
+import {Screen, GREY, GREEN, RED} from './screen.js';
 import {crc32} from '../codeplug/oddb.js';
 
 const BLOCK = 4096;
@@ -31,6 +32,7 @@ export class Bootloader {
         this.s = new RawPort();
         this.port = port;
         this.slow = true;
+        this.screen = null;
     }
 
     async open() {
@@ -202,6 +204,11 @@ export class Bootloader {
             failures = good ? 0 : failures + 1;
             n += good;
             await this.progress(n, total);
+            const percent = Math.floor((n * 100) / total);
+            if (percent >= (this.shown ?? 0) + 5 || n === total) { // the radio's text, each 5 %
+                this.shown = percent;
+                await this.screen?.line('percent', `${percent}%`);
+            }
             onBlock?.(n, total);
         }
         return out;
@@ -216,7 +223,14 @@ export class Bootloader {
             throw new Error(`unknown capacity byte 0x${id[2].toString(16)}`);
         }
         const out = new Uint8Array(size);
+        this.shown = 0;
+        this.screen = new Screen(this.s);
+        await this.screen.line('title', 'Copia de seguridad');
+        await this.screen.line('chip', chip === CHIP_DATA ? 'Datos 25Q128' : 'Programa', GREY);
+        await this.screen.line('chip', 'No apagar', RED);
+        await this.screen.line('percent', '0%');
         await this.readChip(chip, out, onBlock, shouldStop);
+        await this.screen.line('title', 'Copia lista', GREEN);
         return {id, size, data: out};
     }
 
@@ -296,6 +310,11 @@ export class Bootloader {
         for (let i = 0; i < count; i++) {
             wanted.push(crc32(data.subarray(i * BLOCK, (i + 1) * BLOCK)));
         }
+        this.shownWrite = 0;
+        this.screen = new Screen(this.s);
+        await this.screen.line('title', opts.offset ? 'Instalando' : 'Escribiendo copia');
+        await this.screen.line('chip', 'No apagar', RED);
+        await this.screen.line('percent', '0%');
         let skip = 0;
         if (chip === CHIP_PROGRAM && !opts.writeBoot) {
             skip = Math.max(0, Math.min(count, Math.floor((0xC000 - offset) / BLOCK))); // the bootloader as it is
@@ -317,6 +336,11 @@ export class Bootloader {
                 opts.writeBoot ? 0x80 : 0);
             written++;
             await this.progress(k + 1, todo.length);
+            const percent = Math.floor(((k + 1) * 100) / todo.length);
+            if (percent >= (this.shownWrite ?? 0) + 5 || k + 1 === todo.length) {
+                this.shownWrite = percent;
+                await this.screen.line('percent', `${percent}%`);
+            }
             opts.onBlock?.(k + 1, todo.length);
         }
         const after = await this.sectorCrcs(chip, offset, count);
@@ -329,6 +353,7 @@ export class Bootloader {
         if (bad.length) {
             throw new Error(`${bad.length} sectors still differ, first 0x${(offset + (bad[0] * BLOCK)).toString(16)}`);
         }
+        await this.screen.line('title', 'Listo', GREEN);
         return written;
     }
 }

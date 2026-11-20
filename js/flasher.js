@@ -80,6 +80,9 @@ export function createFlasher(deps) {
         firmwareTried: false,
         log: [],             // {time, text, kind}: what the page has done, shown in the log card
         logBox: null,        // the element it is drawn in, while the page is there
+        liveText: '',        // what it is doing now, in the panel at the top
+        livePercent: 0,
+        liveBox: null,       // {text, bar}: the panel's elements, while the page is there
     };
 
     const included = packageFirmware();
@@ -170,6 +173,17 @@ export function createFlasher(deps) {
         return `Radio: ${info.git || '?'} · build ${info.build || '?'}`;
     }
 
+    // What the page is doing, in the panel at the top (and the status bar below)
+    function say(text, done = 0, total = 0) {
+        state.liveText = text;
+        state.livePercent = total ? Math.round((100 * done) / total) : 0;
+        status(text);
+        if (state.liveBox) {
+            state.liveBox.text.textContent = text;
+            state.liveBox.bar.style.width = state.livePercent + '%';
+        }
+    }
+
     function card(title, intro, ...body) {
         return el('div', {class: 'card form-card'},
             el('h3', {class: 'card-title'}, title),
@@ -194,6 +208,9 @@ export function createFlasher(deps) {
             } finally {
                 state.busy = false;
                 progress(0, 0);
+                if (state.liveBox) {
+                    state.liveBox.bar.style.width = '0%';
+                }
             }
         };
     }
@@ -256,13 +273,13 @@ export function createFlasher(deps) {
         const updater = new Updater(await portPromise);
         const started = Date.now();
         try {
-            status(t('flUpdating'));
+            say(t('flUpdating') + ' …');
             logLine(t('flUpdating') + ' …');
             await updater.open();
             logLine(`cable: ${updater.s.baud} baud`);
             let lastStep = -1;
             const written = await updater.writeImage(firmware.image, (done, total) => {
-                status(`${t('flUpdating')} ${done} / ${total}`);
+                say(`${t('flUpdating')} ${done} / ${total}`, done, total);
                 progress(done, total);
                 const step = Math.floor((done * 20) / total); // a line each 5 %
                 if (step !== lastStep) {
@@ -273,7 +290,7 @@ export function createFlasher(deps) {
             logLine(`cable: ${updater.s.baud} baud`);
             disconnect?.();
             const seconds = Math.round((Date.now() - started) / 1000);
-            status(`${t('flUpdateDone')} (${written} × 4 KB)`);
+            say(`${t('flUpdateDone')} (${written} × 4 KB)`, 1, 1);
             logLine(`${t('flUpdateDone')}: ${written} × 4 KB · ${seconds} s`, 'ok');
             toast(t('flUpdateDone'), 6000);
         } finally {
@@ -297,10 +314,11 @@ export function createFlasher(deps) {
         const total = L.REGIONS.reduce((n, r) => n + (r.end - r.start), 0);
         let done = 0;
         let lastStep = -1;
-        status(t('reading'));
+        say(t('reading'));
         for (const r of L.REGIONS) {
             await link.readRegion(img, r.start, r.end, progress, done, total);
             done += r.end - r.start;
+            say(`${t('reading')} ${Math.round((100 * done) / total)} %`, done, total);
             const step = Math.floor((done * 10) / total);
             if (step !== lastStep) {
                 lastStep = step;
@@ -309,7 +327,7 @@ export function createFlasher(deps) {
         }
         const name = `${radioName()}-codeplug.bin`;
         download(name, img);
-        status(t('flBackupDone'));
+        say(t('flBackupDone'), 1, 1);
         logLine(`${t('flBackupDone')}: ${name} · ${(img.length / 1024).toFixed(0)} KB`, 'ok');
         toast(t('flBackupDone'), 5000);
     });
@@ -319,21 +337,21 @@ export function createFlasher(deps) {
         const started = Date.now();
         try {
             await boot.open();
-            status(t('flSwitchOffOn'));
+            say(t('flSwitchOffOn'));
             logLine(t('flSwitchOffOn'));
             let lastStep = -1;
             const result = await boot.dump(chip, (done, total) => {
-                status(`${t('flReading')} ${done} / ${total} (${Math.round(100 * done / total)}%)`);
+                say(`${t('flReading')} ${done} / ${total} (${Math.round(100 * done / total)}%)`, done, total);
                 progress(done, total);
                 const step = Math.floor((done * 20) / total);
                 if (step !== lastStep) {
                     lastStep = step;
                     logLine(`${t('flReading')} ${done}/${total} (${Math.round((100 * done) / total)} %)`);
                 }
-            }, null, () => status(t('flSwitchOffOn')));
+            }, null, () => say(t('flSwitchOffOn')));
             download(name, result.data);
             const seconds = Math.round((Date.now() - started) / 1000);
-            status(t('flBackupDone'));
+            say(t('flBackupDone'), 1, 1);
             logLine(`${t('flBackupDone')}: ${name} · ${(result.size / 1024).toFixed(0)} KB · ` +
                 `JEDEC ${Array.from(result.id).map((b) => b.toString(16)).join(' ')} · ${seconds} s`, 'ok');
             toast(t('flBackupDone'), 5000);
@@ -359,7 +377,7 @@ export function createFlasher(deps) {
         const started = Date.now();
         try {
             await boot.open();
-            status(t('flSwitchOffOn'));
+            say(t('flSwitchOffOn'));
             logLine(t('flSwitchOffOn'));
             await boot.prepare(() => status(t('flSwitchOffOn')));
             const data = new Uint8Array(await file.arrayBuffer());
@@ -380,7 +398,7 @@ export function createFlasher(deps) {
             const written = await boot.restore(chip, data, {
                 offset,
                 onBlock: (done, total) => {
-                    status(`${t('flWriting')} ${done} / ${total}`);
+                    say(`${t('flWriting')} ${done} / ${total}`, done, total);
                     progress(done, total);
                     const step = Math.floor((done * 20) / total);
                     if (step !== lastStep) {
@@ -390,7 +408,7 @@ export function createFlasher(deps) {
                 },
             });
             const seconds = Math.round((Date.now() - started) / 1000);
-            status(`${t('flRestoreDone')} (${written})`);
+            say(`${t('flRestoreDone')} (${written})`, 1, 1);
             logLine(`${t('flRestoreDone')}: ${written} · ${seconds} s`, 'ok');
             toast(t('flRestoreDone'), 6000);
         } finally {
@@ -454,7 +472,14 @@ export function createFlasher(deps) {
             logLine(t('flLogEmpty'));
         }
 
-        main.append(pageHead(t('flasher')),
+        const live = el('div', {class: 'fl-live' + (state.busy ? ' on' : '')},
+            el('div', {class: 'fl-live-row'},
+                el('span', {class: 'fl-live-tag'}, t('flWorking')),
+                el('span', {class: 'fl-live-text'}, state.liveText || t('idle'))),
+            el('div', {class: 'fl-live-bar'}, el('i', {style: `width:${state.livePercent}%`})));
+        state.liveBox = {text: live.querySelector('.fl-live-text'), bar: live.querySelector('i')};
+
+        main.append(pageHead(t('flasher')), live,
             el('div', {class: 'general-cards'},
                 card(t('flBackupCard'), t('flBackupIntro'),
                     el('div', {class: 'id-sources'},

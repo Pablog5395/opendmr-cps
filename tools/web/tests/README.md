@@ -6,6 +6,7 @@ The flasher's protocols, run against simulated radios, and the page rendered in 
 node tools/web/tests/test-updater.mjs     # the update program protocol (js/radio/updater.js)
 node tools/web/tests/test-bootloader.mjs  # the chip bootloader, read and restore (js/radio/bootloader.js)
 node tools/web/tests/test-assets.mjs      # assets/ read when served, the embedded copy from disk (js/radio/assets.js)
+node tools/web/tests/test-screen.mjs      # the 'T' text frames for the radio's screen (js/radio/screen.js)
 py build.py && node tools/web/tests/test-page.mjs   # the page: the flasher tab, the languages (needs jsdom)
 ```
 

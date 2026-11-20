@@ -13,6 +13,7 @@
 
 import {RawPort} from './serial.js';
 import {updaterImage} from './assets.js';
+import {Screen, GREEN, RED} from './screen.js';
 import {crc32} from '../codeplug/oddb.js';
 
 const UART_CLOCK = 84000000 / 16;   // the radio's UART: baud = UART_CLOCK / divisor
@@ -57,6 +58,7 @@ export class Updater {
     constructor(port = null) {
         this.s = new RawPort();
         this.port = port;
+        this.screen = null;
     }
 
     async open() {
@@ -287,7 +289,12 @@ export class Updater {
         }
         await this.start();
         await this.speedUp();
+        this.screen = new Screen(this.s);
+        await this.screen.line('title', 'Actualizando');
+        await this.screen.line('chip', 'No apagar', RED);
+        await this.screen.line('percent', '0%');
         let written = 0;
+        let shown = 0;
         for (let n = 0; n < sectors.length; n++) {
             const [address, data] = sectors[n];
             if (force || (await this.sectorCrc(address)) !== crc32(data)) {
@@ -295,6 +302,11 @@ export class Updater {
                 written++;
             }
             await this.progress(n + 1, sectors.length);
+            const percent = Math.floor(((n + 1) * 100) / sectors.length);
+            if (percent >= shown + 5 || n + 1 === sectors.length) { // the radio's text, each 5 %
+                shown = percent;
+                await this.screen.line('percent', `${percent}%`);
+            }
             progress?.(n + 1, sectors.length);
         }
         // checked once more before the restart; a sector spoilt on the way is written again
@@ -319,6 +331,8 @@ export class Updater {
             throw new Error(`still different: ${bad.map(([a]) => '0x' + a.toString(16)).join(', ')} (the radio ` +
                 'stays in the update: run again)');
         }
+        await this.screen.line('title', 'Listo', GREEN);
+        await this.screen.line('chip', 'Reiniciando', GREEN);
         await this.restart();
         return written;
     }

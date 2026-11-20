@@ -36,6 +36,8 @@ The **Flasher** page at the bottom of the sidebar:
 - **Writing a backup back**: only the sectors that differ are written, then all compared; writing the program flash
   leaves the bootloader below 0xC000 alone.
 
+While the flasher works, a panel at the top of its page says what it is doing and how far it is, and the radio's
+screen shows the same (title, "Do not power off", the percentage).
 The page goes in three steps, in order: **1 the backups**, **2 install or update**, **3 back to the stock
 firmware**, plus a **Log** card that can be saved to a file.
 Three ways to write: **Update** (the sectors that differ), **Install / rewrite all** (the whole firmware area) and
