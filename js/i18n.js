@@ -492,9 +492,9 @@ const TEXTS = {
         'The table of the map icon: usually the primary /, the alternate \\ is another set.',
         'La tabla del icono en el mapa: normalmente la principal /, la secundaria \\ es otro conjunto.'],
     helpAprsIcon: [
-        '地图上显示的图标，填一个字符。主表常用：\n[ 行人 / 手台　> 小车　k 卡车　b 自行车\n- 房子　Y 帆船　$ 电话　/ 红点',
-        'The icon on the map, one character. Primary table, common ones:\n[ person / handheld · > car · k truck · b bicycle\n- house · Y yacht · $ phone · / red dot',
-        'El icono en el mapa, un carácter. Tabla principal, habituales:\n[ persona / portátil · > coche · k camión · b bicicleta\n- casa · Y yate · $ teléfono · / punto rojo'],
+        '地图上显示的图标：从列表里选（94 个，主表或副表）。常用的：[ 行人 / 手台　> 小车　k 卡车　b 自行车　- 房子　Y 帆船　$ 电话',
+        'The icon on the map: pick one from the list (94, either table). Common ones: [ person / handheld · > car · k truck · b bicycle · - house · Y yacht · $ phone',
+        'El icono en el mapa: elegilo de la lista (94, de la tabla principal o la alternativa). Habituales: [ persona / portátil · > coche · k camión · b bicicleta · - casa · Y yate · $ teléfono'],
     helpComment: [
         '跟在位置后面发出去的文字，如 OpenDMR DM-32。只能用英文字母、数字和符号，最多 24 个字符。',
         'The text sent after the position: OpenDMR DM-32. Letters, digits and signs, 24 characters at most.',

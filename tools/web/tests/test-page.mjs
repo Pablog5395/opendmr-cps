@@ -106,6 +106,26 @@ if (process.env.PKG) {
     }
 }
 
+// APRS: the symbol picker in the drawer, 94 symbols (0x21..0x7E)
+window.document.querySelector('.tab[data-tab="aprs"]').click();
+await new Promise((resolve) => setTimeout(resolve, 80));
+const addButton = [...window.document.querySelectorAll('#content .page-head button')]
+    .find((b) => /Add|Añadir|添加/.test(b.textContent));
+if (!addButton) {
+    errors.push('APRS: the add button is missing');
+} else {
+    addButton.click();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const symbols = [...window.document.querySelectorAll('#content select')]
+        .find((sel) => sel.options.length === 94);
+    console.log('símbolos APRS:', symbols ? `${symbols.options.length} (ej. "${symbols.options[0].textContent}")` : 'no hay');
+    if (!symbols) {
+        errors.push('APRS: the symbol dropdown is missing');
+    } else if (!symbols.options[0].textContent.startsWith('!')) {
+        errors.push('APRS: the symbol list is not 0x21..0x7E');
+    }
+}
+
 for (const lang of ['es', 'zh', 'en']) {
     for (let i = 0; i < 4 && window.localStorage.getItem('lang') !== lang; i++) {
         window.document.getElementById('btnLang').click();

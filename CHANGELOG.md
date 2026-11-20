@@ -14,6 +14,8 @@
   (every sector of the firmware area) and **Bootloader** (radio off, then on): install OpenDMR on a stock radio
   (`opendmr.bin`, written from 0xC000) and back to factory (the radio's own program flash backup, and the data flash
   one if wanted). The factory buttons check they get the right file.
+- APRS: the symbol is chosen from a list (94 symbols, 0x21..0x7E, with their names) instead of typing the character;
+  the same list in the primary and alternate tables. Ported from the CPS that shipped with the web installer.
 - The radio's screen is lit while it updates: the update program now turns the backlight on at 100 % (the firmware
   may have left it on PWM0 at the night brightness, and the screen was drawn but stayed dark). The flash reader
   already did it.

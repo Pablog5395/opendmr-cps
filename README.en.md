@@ -9,6 +9,7 @@ Current version **0.7.1** ([changelog](CHANGELOG.md)).
 
 - Channels (FM / DMR / P25 / AM / USB / LSB; the NAC of P25), zones, contacts, TG lists, APRS configurations, VFO A / B, callsign and DMR ID
 - The radio's menu settings (general, radio, display, sound, APRS); power 50 mW – 10 W, each channel and VFO its own
+- APRS: the configurations, with a list of the 94 symbols (primary and alternate tables)
 - Amateur satellites: tick one to put it in the radio; orbits fetched by themselves (AMSAT / CelesTrak)
 - DMR ID database: from a CSV (radioid.net's user.csv, downloaded with a click), by country; the radio
   then shows callers' callsigns, names, cities, states and countries (OpenDMR 0.4.0 and later; all the IDs fit, only
