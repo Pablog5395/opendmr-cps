@@ -160,6 +160,20 @@ export function createFlasher(deps) {
         return 'data:application/octet-stream;base64,' + btoa(text);
     }
 
+    // what the radio's own screen took: its lines come back 'T'; none back means the radio did not draw them
+    function screenNote(screen) {
+        if (!screen) {
+            return;
+        }
+        if (!screen.enabled) {
+            logLine(t('flScreenNoCanvas'));
+        } else if (screen.failed) {
+            logLine(`${t('flScreenNoAck')}: ${screen.failed}`, 'bad');
+        } else {
+            logLine(`${t('flScreenOk')}: ${screen.sent}`);
+        }
+    }
+
     function radioName() {
         const info = getRadio();
         return (info?.git || 'opendmr').replace(/[^\w.-]+/g, '_');
@@ -292,6 +306,7 @@ export function createFlasher(deps) {
             const seconds = Math.round((Date.now() - started) / 1000);
             say(`${t('flUpdateDone')} (${written} × 4 KB)`, 1, 1);
             logLine(`${t('flUpdateDone')}: ${written} × 4 KB · ${seconds} s`, 'ok');
+            screenNote(updater.screen);
             toast(t('flUpdateDone'), 6000);
         } finally {
             await updater.close().catch(() => {});
@@ -354,6 +369,7 @@ export function createFlasher(deps) {
             say(t('flBackupDone'), 1, 1);
             logLine(`${t('flBackupDone')}: ${name} · ${(result.size / 1024).toFixed(0)} KB · ` +
                 `JEDEC ${Array.from(result.id).map((b) => b.toString(16)).join(' ')} · ${seconds} s`, 'ok');
+            screenNote(boot.screen);
             toast(t('flBackupDone'), 5000);
         } finally {
             await boot.close().catch(() => {});
@@ -410,6 +426,7 @@ export function createFlasher(deps) {
             const seconds = Math.round((Date.now() - started) / 1000);
             say(`${t('flRestoreDone')} (${written})`, 1, 1);
             logLine(`${t('flRestoreDone')}: ${written} · ${seconds} s`, 'ok');
+            screenNote(boot.screen);
             toast(t('flRestoreDone'), 6000);
         } finally {
             await boot.close().catch(() => {});

@@ -331,8 +331,10 @@ export class Updater {
             throw new Error(`still different: ${bad.map(([a]) => '0x' + a.toString(16)).join(', ')} (the radio ` +
                 'stays in the update: run again)');
         }
-        await this.screen.line('title', 'Listo', GREEN);
+        // a moment on the screen before the radio goes: the last message is read
+        await this.screen.line('title', written === 0 ? 'Ya esta al dia' : 'Listo', GREEN);
         await this.screen.line('chip', 'Reiniciando', GREEN);
+        await new Promise((resolve) => setTimeout(resolve, 700));
         await this.restart();
         return written;
     }

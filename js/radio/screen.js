@@ -66,6 +66,8 @@ export class Screen {
         this.port = port;
         this.shown = {}; // a line is sent only when it changes
         this.enabled = true;
+        this.sent = 0;     // lines the radio took ('T' back)
+        this.failed = 0;   // lines it did not answer for
     }
 
     // One of LINES, or the position given
@@ -96,11 +98,18 @@ export class Screen {
         frame.set(head);
         frame.set(image.bits, head.length);
         await this.port.write(frame);
+        let acked = false;
         try {
-            await this.port.read(1, 2000);
+            acked = (await this.port.read(1, 2000))[0] === 0x54; // 'T'
         } catch (e) {
-            // the reply lost: the line was drawn or not, it does not matter
+            acked = false;
+        }
+        if (acked) {
+            this.sent++;
+        } else {
+            this.failed++;
         }
         this.shown[which] = key;
+        return acked;
     }
 }

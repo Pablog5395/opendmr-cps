@@ -796,6 +796,12 @@ const TEXTS = {
     flProgramsEmbedded: ['电台端程序：内置副本（页面从磁盘打开时用）', 'Radio-side programs: the embedded copies (page opened from disk)',
         'Programas de la radio: las copias embebidas (página abierta desde el disco)'],
     flWorking: ['正在处理', 'Working', 'Trabajando'],
+    flScreenOk: ['电台屏幕：已显示', 'Radio screen: drawn', 'Pantalla de la radio: dibujada'],
+    flScreenNoAck: ['电台屏幕没有回应（消息可能没显示）', 'the radio screen did not answer (the lines may not show)',
+        'la pantalla de la radio no respondió (puede que no se vean los mensajes)'],
+    flScreenNoCanvas: ['页面无法画字（浏览器太旧？）：没有给电台屏幕发消息',
+        'the page cannot draw text (an old browser?): nothing sent to the radio screen',
+        'la página no puede dibujar texto (¿navegador viejo?): no se envió nada a la pantalla de la radio'],
     idle: ['等待', 'Idle', 'En espera'],
     flLogCard: ['记录', 'Log', 'Registro'],
     flLogIntro: [
