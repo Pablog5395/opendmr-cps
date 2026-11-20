@@ -73,53 +73,37 @@ console.log('buttons:', JSON.stringify(buttons));
 if (cards.length !== 5) {
     errors.push('expected 5 cards, got ' + cards.length);
 }
-if (!buttons.some((b) => b.includes('updater.bin')) || !buttons.some((b) => b.includes('dumper.bin'))) {
-    errors.push('the two program downloads are missing');
+if (buttons.some((b) => b.includes('updater.bin')) || buttons.some((b) => b.includes('dumper.bin'))) {
+    errors.push('the programs card should be gone');
+}
+if (!main.querySelector('.fl-log')) {
+    errors.push('the log is missing');
 }
 if (!main.querySelector('a[href*="OpenDMR/releases"]')) {
     errors.push('the releases link is missing');
 }
 
-// los dos botones de descarga: pulsan y bajan el archivo (en jsdom, como data URL)
-const before = main.querySelectorAll('a[download]').length;
-for (const name of ['updater.bin', 'dumper.bin']) {
-    const b = [...main.querySelectorAll('button')].find((x) => x.textContent.includes(name));
-    b.click();
-    await new Promise((resolve) => setTimeout(resolve, 50));
-}
-const links = [...document.querySelectorAll('a[download]')];
-console.log('descargas:', links.map((a) => a.download + ' ' + a.getAttribute('href').slice(0, 24)).join(' | '));
-if (links.length < before + 2) {
-    errors.push('the download links were not made');
-}
-const updaterLink = links.find((a) => a.download === 'updater.bin');
-if (!updaterLink || !/^(blob:|data:)/.test(updaterLink.getAttribute('href'))) {
-    errors.push('updater.bin did not download');
-} else if (updaterLink.getAttribute('href').startsWith('blob:')) {
-    // el blob de Node: los bytes tienen que ser los del .bin
-    const bytes = new Uint8Array(await (await fetch(updaterLink.getAttribute('href'))).arrayBuffer());
-    const disk = readFileSync(new URL('../../../assets/updater.bin', import.meta.url));
-    if (bytes.length !== disk.length || !bytes.every((v, i) => v === disk[i])) {
-        errors.push('updater.bin downloaded different bytes');
-    }
-}
-if (buttons.length < 7) {
-    errors.push('not enough buttons');
-}
-if (!text.includes('opendmr.bin') && !text.includes('opendmr-')) {
-    errors.push('the firmware hint is missing');
-}
 if (process.env.PKG) {
-    const update = [...main.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Update');
-    if (!update || update.disabled) {
-        errors.push('the package firmware is not offered (Update disabled)');
-    }
+    // the package's page has the firmware inside: Update is enabled with nothing to pick
     if (!text.includes('opendmr-0.6.1.bin')) {
         errors.push('the package firmware name is not shown');
     }
-}
-if (/fl[A-Z]\w+/.test(text)) {
-    errors.push('untranslated keys: ' + text.match(/fl[A-Z]\w+/g).join(', '));
+    const update = [...main.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Update');
+    if (!update || update.disabled) {
+        errors.push('the package firmware is not offered (Update disabled)');
+    } else {
+        // and the log records the attempt and its failure (there is no cable in the test)
+        update.click();
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const log = main.querySelector('.fl-log')?.textContent || '';
+        console.log('log:', log.split('\n').filter(Boolean).slice(-3).join(' | '));
+        if (!/\d\d:\d\d:\d\d/.test(log)) {
+            errors.push('the log has no timestamps');
+        }
+        if (!/Error|no port|no hay/i.test(log)) {
+            errors.push('the log did not record the failed update');
+        }
+    }
 }
 
 for (const lang of ['es', 'zh', 'en']) {

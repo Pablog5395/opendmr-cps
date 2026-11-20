@@ -9,12 +9,9 @@
     LEEME-PRIMERO.txt    the same, plain text
     opendmr-cps.html     the whole CPS and the flasher in one file, with the firmware inside
                          (window.__OPENDMR_FIRMWARE): "Update" needs no file to look for
-    programas/
-      updater.bin        the radio's update program, as the flasher uses it
-      dumper.bin         the flash reader
 
-The page works from a disk file: the two programs are also inside it (the same bytes), programas/ is so they can be
-seen and kept. The folder is also written as OpenDMR-CPS.zip, one file to send.
+The page works from a disk file: the two radio-side programs are inside it. The folder is also written as
+OpenDMR-CPS.zip, one file to send.
 """
 import argparse
 import base64
@@ -59,53 +56,63 @@ LEEME_TXT = """OpenDMR CPS + Flasher  (OpenDMR 0.6.1 en adelante)
 
 Que es
 ------
-El programa de escritorio (en el navegador) para la radio Baofeng DM-32 / DM-32UV con firmware OpenDMR:
-canales, zonas, contactos, APRS, satelites, temas, y una pagina Flasher para actualizar el firmware y hacer
-las copias de seguridad. Gratis, sin instalar nada.
+El programa (en el navegador) para la radio Baofeng DM-32 / DM-32UV con firmware OpenDMR: canales, zonas,
+contactos, APRS, satelites, temas, y la pagina Flasher para actualizar y hacer las copias. Gratis, sin instalar nada.
 
 Como se abre
 ------------
 1. Descomprimi esta carpeta entera (no abrir el .html desde dentro del ZIP).
 2. Doble clic en  "Abrir CPS.bat".
    Si el navegador no abre solo, doble clic en  "opendmr-cps.html"  (con Chrome o Edge).
-3. Conectar la radio: encendida, con el cable de programacion, y en la pagina apretar "Conectar"
-   (arriba) y elegir el puerto del cable (COM...).
+3. Radio encendida y con el cable: en la pagina, arriba, "Conectar" y elegir el puerto (COM...).
 
-Antes de tocar nada
--------------------
-En la pagina Flasher, "Las tres copias":
-  - Codeplug y ajustes       (radio encendida: segundos)
-  - Flash de programa        (apagar la radio y prenderla cuando lo pida)
-  - Flash de datos (16 MB)   (igual; tarda 10 minutos o mas)
-Guardar las tres en un lugar seguro, con el numero de serie de la radio: sin las dos flash no se puede volver atras.
+En la pagina Flasher esta todo en tres pasos, en orden:
 
-Instalar en una radio original / volver a fabrica
--------------------------------------------------
-En la pagina, tarjeta "Bootloader": la radio APAGADA, apretas el boton y la PRENDES cuando lo pida (30 s).
-  - Instalar OpenDMR en una radio original: elegi firmware/opendmr-0.6.1.bin (radio con el firmware de fabrica).
-  - Volver a fabrica: elegi la copia de "Flash de programa" (1 MB) de ESTA radio.
-  - Volver a fabrica (datos): la copia de "Flash de datos" (16 MB) de ESTA radio.
-Sin la copia no hay vuelta atras, y la de otra radio no sirve.
+PASO 1 - Hacer las copias (antes de tocar nada)
+-----------------------------------------------
+  - Codeplug y ajustes   (radio encendida: segundos)
+  - Flash de programa    (apagar la radio -> boton -> prenderla cuando lo pida, 30 s)
+  - Flash de datos       (igual; 10 minutos o mas)
+Guardar las tres, con el numero de serie de la radio: sin las dos flash no se puede volver atras.
 
-En "Programas de la radio" estan updater.bin y dumper.bin (los mismos que usa la pagina, en la carpeta programas/).
+PASO 2 - Instalar o actualizar
+------------------------------
+El firmware ya viene en la carpeta  firmware/  (opendmr-0.6.1.bin, con la version y el SHA-256 en el LEEME de
+esa carpeta). En la pagina, tarjeta "Paso 2":
+  - "Actualizar": solo escribe lo que cambia (radio que ya tiene OpenDMR, encendida).
+  - "Instalar / reescribir todo": escribe todo el firmware (radio que ya tiene OpenDMR, encendida).
+  - "Instalar OpenDMR en una radio original": para una radio que todavia tiene el firmware de fabrica; apagar la
+    radio, apretar el boton y prenderla dentro de 30 segundos.
+Otra version: https://github.com/va3bpf/OpenDMR/releases
 
-El firmware ya viene en la carpeta  firmware/  (por ejemplo opendmr-0.6.1.bin, con la version y el SHA-256 en el
-LEEME de esa carpeta). En la pagina: Flasher -> "Elegir firmware..." y elegi ese archivo. Si algun dia queres otro,
-las releases estan en:  https://github.com/va3bpf/OpenDMR/releases
+PASO 3 - Volver al firmware original
+------------------------------------
+  - "Volver a fabrica": elegir la copia de "Flash de programa" (1 MB) de ESTA radio.
+  - "Volver a fabrica (datos)": la copia de "Flash de datos" (16 MB) de ESTA radio.
+Apagar la radio, apretar el boton y prenderla dentro de 30 segundos. Sin la copia no hay vuelta atras, y la de
+otra radio no sirve.
+
+Registro
+--------
+La pagina anota cada paso en la tarjeta "Registro" (hora, que se hizo, resultado). Si algo falla, "Guardar en un
+archivo" y mandalo.
 
 Aviso
 -----
-Flashear tiene riesgo. Hacer las copias primero. La calibracion de fabrica de cada radio es solo de esa radio.
+Actualizar tiene riesgo. Hacer las copias primero. La calibracion de fabrica es solo de esa radio.
 
 --------------------------------------------------
 
 English
 -------
 Unzip the whole folder, then double-click "Abrir CPS.bat" (or "opendmr-cps.html" in Chrome or Edge).
-Connect the radio (on, programming cable) and click "Connect". Before flashing anything, make the three backups
-in the Flasher page (codeplug, program flash, data flash) and keep them with the radio's serial number.
-opendmr.bin comes from https://github.com/va3bpf/OpenDMR/releases
+Switch the radio on, plug the programming cable, click "Connect" and pick the port.
+The Flasher page does everything in three steps, in order: 1 the backups (codeplug, program flash, data flash),
+2 install or update (the firmware is in firmware/; a stock radio uses "Install OpenDMR on a stock radio"), 3 back
+to the stock firmware from this radio's own backups. Keep the backups with the radio's serial number: a backup only
+fits its own radio. Every step is in the page's Log card: if something fails, save it and send it.
 """
+
 
 LEEME_HTML = """<!doctype html>
 <html lang="es">
@@ -155,7 +162,7 @@ Gratis, no hay que instalar nada.</p>
   satélites) y, en la pestaña <b>Flasher</b>, actualizar el firmware y hacer las <b>copias de seguridad</b>.
 </div>
 
-<h2>1. Abrir la página</h2>
+<h2>Abrir la página</h2>
 <ol class="steps">
   <li>Descomprimí <b>toda la carpeta</b> (no abras el <code>.html</code> desde adentro del ZIP).</li>
   <li>Doble clic en <span class="file btn">Abrir CPS.bat</span>.<br>
@@ -166,7 +173,7 @@ Gratis, no hay que instalar nada.</p>
 </ol>
 <p class="muted">Sólo la primera vez: el navegador pide permiso para usar el puerto. Aceptá.</p>
 
-<h2>2. Antes de tocar nada: las tres copias</h2>
+<h2>Paso 1 · Hacer las copias</h2>
 <p>Andá a la pestaña <b>Flasher</b> (última de la barra de la izquierda) → tarjeta <b>«Las tres copias»</b>.
 Hacé las tres, en este orden:</p>
 <table>
@@ -181,7 +188,7 @@ Hacé las tres, en este orden:</p>
   calibración de fábrica: el backup de una <b>no sirve</b> para otra.
 </div>
 
-<h2>3. Actualizar el firmware</h2>
+<h2>Paso 2 · Instalar o actualizar</h2>
 <ol class="steps">
   <li><b>Ya viene en este paquete</b>: <code>firmware/opendmr-0.6.1.bin</code> (adentro de esa carpeta está la
       versión y el SHA-256). Si querés otra versión, bajala de las releases de OpenDMR:
@@ -195,7 +202,7 @@ Hacé las tres, en este orden:</p>
 primero, así que si ya está esa versión escribe 0 sectores. <b>No</b> transmitas mientras actualiza, y no la apagues
 en el medio.</p>
 
-<h2>4. Instalar en una radio original y volver a fábrica</h2>
+<h2>Paso 3 · Volver al firmware original</h2>
 <p>Estas dos van por el <b>bootloader</b>: la radio <b>apagada</b>, apretás el botón y la <b>prendés</b> cuando la página
 lo pida (30 segundos; pantalla negra y LED apagado es lo correcto).</p>
 <table>
@@ -212,12 +219,7 @@ lo pida (30 segundos; pantalla negra y LED apagado es lo correcto).</p>
   copias se hacen <b>antes</b> de tocar nada.
 </div>
 
-<h2>5. Los programas de la radio</h2>
-<p>En la tarjeta <b>«Programas de la radio»</b> están <code>updater.bin</code> y <code>dumper.bin</code>, con un botón
-para descargarlos (también van en la carpeta <code>programas\\</code>). Los usa la página sola: cargan en la
-<b>memoria</b> de la radio, no se graban en la flash.</p>
-
-<h2>6. Si algo no anda</h2>
+<h2>Si algo no anda</h2>
 <table>
   <tr><th>Qué pasa</th><th>Qué mirar</th></tr>
   <tr><td>No aparece ningún <code>COM…</code></td><td>Driver del cable CH340 (buscá «CH340 driver»), cable bien puesto,
@@ -230,6 +232,11 @@ para descargarlos (también van en la carpeta <code>programas\\</code>). Los usa
   <tr><td>El PTT del satélite hace un tono de error</td><td>Falta la configuración APRS con el nombre del satélite
       (<code>ISS</code>) o la posición.</td></tr>
 </table>
+
+<div class="box">
+  <b>Registro:</b> la página anota cada paso en la tarjeta <b>«Registro»</b> (hora, qué se hizo, resultado).
+  Si algo falla, apretá <b>«Guardar en un archivo»</b> y mandá ese archivo.
+</div>
 
 <div class="bad box">
   <b>Aviso:</b> actualizar el firmware tiene riesgo. Hacé las tres copias primero. Si algo sale mal, la radio se
@@ -250,8 +257,8 @@ para descargarlos (también van en la carpeta <code>programas\\</code>). Los usa
       the SHA-256); in the flasher, "Choose firmware…" and pick it. Other versions:
       <a href="https://github.com/va3bpf/OpenDMR/releases">github.com/va3bpf/OpenDMR/releases</a> (not the BFUV32 one).</li>
 </ol>
-<p class="muted">The two radio-side programs (<code>updater.bin</code>, <code>dumper.bin</code>) are in
-<code>programas\\</code> and inside the page; they are loaded into the radio's RAM, not the flash.</p>
+<p class="muted">The two radio-side programs are inside the page; they are loaded into the radio's RAM, not the
+flash. Every step is written to the page's <b>Log</b> card: if something fails, save it and send it.</p>
 
 </body>
 </html>
@@ -288,7 +295,7 @@ def main():
 
     if OUT.exists():
         shutil.rmtree(OUT)
-    (OUT / 'programas').mkdir(parents=True)
+    OUT.mkdir(parents=True)
     (OUT / 'firmware').mkdir()
     # the page: the packed release with the firmware inside, so the flasher's buttons work with nothing to look for
     firmware_name, firmware = find_firmware(args.firmware)
@@ -299,8 +306,6 @@ def main():
     assert '<body>' in page, 'the packed page has no <body>'
     (OUT / 'opendmr-cps.html').write_text(page.replace('<body>', '<body>' + injected, 1),
                                           encoding='utf-8', newline='\n')
-    shutil.copyfile(ROOT / 'assets' / 'updater.bin', OUT / 'programas' / 'updater.bin')
-    shutil.copyfile(ROOT / 'assets' / 'dumper.bin', OUT / 'programas' / 'dumper.bin')
     (OUT / 'firmware' / firmware_name).write_bytes(firmware)
     digest = hashlib.sha256(firmware).hexdigest()
     (OUT / 'firmware' / 'LEEME.txt').write_text(

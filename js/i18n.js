@@ -666,7 +666,7 @@ const TEXTS = {
     flChooseFile: ['选择固件…', 'Choose firmware…', 'Elegir firmware…'],
     flConnectFirst: ['先点顶部的「连接电台」', 'Click "Connect" at the top first',
         'Primero hacé clic en «Conectar» arriba'],
-    flUpdateCard: ['固件更新（不用升级模式）', 'Firmware update (no upgrade mode)', 'Actualización de firmware (sin modo upgrade)'],
+    flUpdateCard: ['第二步 · 安装或更新', 'Step 2 · Install or update', 'Paso 2 · Instalar o actualizar'],
     flUpdateIntro: [
         '把 opendmr.bin 通过写频线写进电台，不用 PTT + SK1 的升级模式。只改变固件区（0xC000 以上），引导程序和出厂校准不动；每个扇区先比 CRC，只写不同的，写完再读回校验。',
         'Writes opendmr.bin over the programming cable, without the PTT + SK1 upgrade mode. Only the firmware area (0xC000 and up) changes: the bootloader and the factory calibration stay as they are. Each sector is compared by CRC, only the different ones written, and all read back.',
@@ -688,7 +688,7 @@ const TEXTS = {
         'La radio encendida, con el cable y sin transmitir. Al terminar se reinicia sola.'],
     flUpdating: ['正在更新', 'Updating', 'Actualizando'],
     flUpdateDone: ['固件更新完成', 'Firmware updated', 'Firmware actualizado'],
-    flBackupCard: ['三份备份', 'The three backups', 'Las tres copias de seguridad'],
+    flBackupCard: ['第一步 · 先做备份', 'Step 1 · Make the backups', 'Paso 1 · Hacer las copias'],
     flBackupIntro: [
         '每台电台的备份只能用在它自己身上：里面有它的出厂校准。',
         'A radio\'s backup is only good for that radio: it holds its factory calibration.',
@@ -719,14 +719,15 @@ const TEXTS = {
         '关掉电台，然后开机（30 秒内）。画面黑屏、指示灯灭就对了。',
         'Switch the radio off, then on (within 30 s): a black screen and the LED off is right.',
         'Apagá la radio y prendela (dentro de 30 s): pantalla negra y LED apagado es lo correcto.'],
-    flBootCard: [
-        '引导程序：装到原厂电台 / 恢复出厂',
-        'Bootloader: install on a stock radio / back to factory',
-        'Bootloader: instalar en una radio original / volver a fábrica'],
+    flBootCard: ['第三步 · 退回原厂固件', 'Step 3 · Back to the stock firmware', 'Paso 3 · Volver al firmware original'],
     flBootIntro: [
-        '这两个都要把电台先关机（按钮按下后再开机，30 秒内）。写的是程序 Flash 的 0xC000 以上，引导程序不动。',
-        'Both need the radio switched off (press the button, then switch it on within 30 s). They write the program flash above 0xC000; the bootloader stays as it is.',
-        'Las dos piden apagar la radio (apretás el botón y la prendés dentro de 30 s). Escriben el programa desde 0xC000; el bootloader no se toca.'],
+        '要把装 OpenDMR 之前做的备份写回去：程序 Flash（1 MB）必填，数据 Flash（16 MB）可选。电台先关机，按下按钮后再开机（30 秒内）。',
+        'Writes back the backups made before installing OpenDMR: the program flash (1 MB) is needed, the data flash (16 MB) optional. Switch the radio off, press the button, then switch it on (within 30 s).',
+        'Escribe las copias hechas antes de instalar OpenDMR: la de programa (1 MB) es obligatoria, la de datos (16 MB) opcional. Apagá la radio, apretá el botón y prendela (dentro de 30 s).'],
+    flStep2StockHint: [
+        '电台还是原厂固件时用这个：先关机，按下按钮再开机（30 秒内）。已经有 OpenDMR 就用上面的「更新」。',
+        'For a radio still on the stock firmware: switch it off, press the button, then switch it on (within 30 s). A radio already on OpenDMR uses "Update" above.',
+        'Para una radio que todavía tiene el firmware original: apagala, apretá el botón y prendela (dentro de 30 s). Si ya tiene OpenDMR, usá «Actualizar» de arriba.'],
     flInstallStock: [
         '把 OpenDMR 装到原厂固件的电台（选 opendmr.bin）',
         'Install OpenDMR on a stock radio (pick opendmr.bin)',
@@ -794,6 +795,16 @@ const TEXTS = {
         'Programas de la radio: los archivos de assets/'],
     flProgramsEmbedded: ['电台端程序：内置副本（页面从磁盘打开时用）', 'Radio-side programs: the embedded copies (page opened from disk)',
         'Programas de la radio: las copias embebidas (página abierta desde el disco)'],
+    flLogCard: ['记录', 'Log', 'Registro'],
+    flLogIntro: [
+        '这里记下每一步（时间、动作、结果）。出错时把它存下来发给我。',
+        'Every step is written here (time, what, result). If something fails, save it and send it.',
+        'Acá queda cada paso (hora, qué se hizo, resultado). Si algo falla, guardalo y mandámelo.'],
+    flLogEmpty: ['（空：还没有操作）', '(empty: nothing yet)', '(vacío: todavía no se hizo nada)'],
+    flLogCopy: ['复制', 'Copy', 'Copiar'],
+    flLogSave: ['保存为文件', 'Save to a file', 'Guardar en un archivo'],
+    flLogClear: ['清空', 'Clear', 'Limpiar'],
+    flLogCopied: ['记录已复制', 'Log copied', 'Registro copiado'],
     flNotesCard: ['注意', 'Notes', 'Notas'],
     flNote1: ['第一次刷机之前，先把三份备份都做一遍。',
         'Before flashing anything for the first time, make all three backups.',

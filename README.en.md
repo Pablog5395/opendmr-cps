@@ -36,6 +36,8 @@ The **Flasher** page at the bottom of the sidebar:
 - **Writing a backup back**: only the sectors that differ are written, then all compared; writing the program flash
   leaves the bootloader below 0xC000 alone.
 
+The page goes in three steps, in order: **1 the backups**, **2 install or update**, **3 back to the stock
+firmware**, plus a **Log** card that can be saved to a file.
 Three ways to write: **Update** (the sectors that differ), **Install / rewrite all** (the whole firmware area) and
 **Bootloader** (radio off, then on): install OpenDMR on a stock radio (`opendmr.bin`, written from 0xC000) or go
 back to factory (the radio's own program flash backup, plus the data flash one if wanted). The factory buttons

@@ -1,13 +1,15 @@
 // The flasher page: firmware update over the programming cable, and the three backups of the radio (the codeplug, the
 // program flash, the whole data flash). The update is tools/debug/fw_update.py in the browser; the backups are
 // tools/backup/dm32_dump.py, through the chip bootloader (radio off, then switched on).
+//
+// Everything it does is written to the page's log (a card at the bottom), with the time, so a session can be read
+// back or saved and sent.
 
 import {t} from './i18n.js';
 import {icon} from './icons.js';
 import {RawPort} from './radio/serial.js';
 import {Updater, prepareImage} from './radio/updater.js';
 import {Bootloader, CHIP_DATA, CHIP_PROGRAM} from './radio/bootloader.js';
-import {sources, updaterImage, dumperImage} from './radio/assets.js';
 import * as L from './codeplug/layout.js';
 
 const PROGRAM_SIZE = 1 << 20;          // the GD25Q80
@@ -62,6 +64,12 @@ async function folderFirmware() {
     }
 }
 
+function clock() {
+    const now = new Date();
+    const two = (n) => String(n).padStart(2, '0');
+    return `${two(now.getHours())}:${two(now.getMinutes())}:${two(now.getSeconds())}`;
+}
+
 // deps: {el, pageHead, toast, status, progress, getLink, getRadio, disconnect, rerender}
 export function createFlasher(deps) {
     const {el, pageHead, toast, status, progress, getLink, getRadio, disconnect, rerender} = deps;
@@ -69,17 +77,62 @@ export function createFlasher(deps) {
         busy: false,
         firmware: null,      // {name, size, image}
         fromPackage: false,  // the firmware comes inside the page (the package's): no file to look for
-        assetSource: null,   // 'assets' or 'embedded', once the page knows
-        assetLoading: false,
         firmwareTried: false,
+        log: [],             // {time, text, kind}: what the page has done, shown in the log card
+        logBox: null,        // the element it is drawn in, while the page is there
     };
 
-    // The package's page (tools/web/make_package.py) carries the firmware in window.__OPENDMR_FIRMWARE
     const included = packageFirmware();
     if (included) {
         state.firmware = included;
         state.fromPackage = true;
     }
+
+    /* ---- the log ---- */
+
+    function logLine(text, kind = '') {
+        const entry = {time: clock(), text, kind};
+        state.log.push(entry);
+        if (state.log.length > 2000) {
+            state.log.splice(0, state.log.length - 2000);
+        }
+        if (state.logBox) {
+            state.logBox.append(logRow(entry));
+            while (state.logBox.childElementCount > state.log.length) {
+                state.logBox.firstElementChild.remove();
+            }
+            state.logBox.scrollTop = state.logBox.scrollHeight;
+        }
+    }
+
+    function logRow(entry) {
+        return el('div', {class: 'fl-log-line' + (entry.kind ? ' ' + entry.kind : '')},
+            el('span', {class: 'fl-log-time'}, entry.time), ' ', entry.text);
+    }
+
+    function logText() {
+        return state.log.map((e) => `${e.time}  ${e.text}`).join('\n') + '\n';
+    }
+
+    function logSave() {
+        if (!state.log.length) {
+            return;
+        }
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        download(`opendmr-log-${stamp}.txt`, new TextEncoder().encode(
+            `OpenDMR CPS — flasher log\n${new Date().toString()}\n\n${logText()}`));
+    }
+
+    async function logCopy() {
+        try {
+            await navigator.clipboard.writeText(logText());
+            toast(t('flLogCopied'), 3000);
+        } catch (e) {
+            logSave(); // no clipboard (a file:// page in some browsers): the file
+        }
+    }
+
+    /* ---- files ---- */
 
     function download(name, data) {
         const blob = new Blob([data], {type: 'application/octet-stream'});
@@ -104,20 +157,17 @@ export function createFlasher(deps) {
         return 'data:application/octet-stream;base64,' + btoa(text);
     }
 
-    // the two radio-side programs, whichever copy the page has (assets/ or embedded): the file to keep or to put in assets/
-    async function downloadBin(name, loader) {
-        try {
-            const data = await loader();
-            download(name, data);
-            toast(`${name}: ${data.length} bytes`, 4000);
-        } catch (e) {
-            toast(t('error') + ': ' + (e?.message || e), 8000);
-        }
-    }
-
     function radioName() {
         const info = getRadio();
         return (info?.git || 'opendmr').replace(/[^\w.-]+/g, '_');
+    }
+
+    function radioInfoText() {
+        const info = getRadio();
+        if (!info) {
+            return null;
+        }
+        return `Radio: ${info.git || '?'} · build ${info.build || '?'}`;
     }
 
     function card(title, intro, ...body) {
@@ -138,6 +188,7 @@ export function createFlasher(deps) {
             try {
                 await fn(...args);
             } catch (e) {
+                logLine(t('error') + ': ' + (e?.message || e), 'bad');
                 toast(t('error') + ': ' + (e?.message || e), 8000);
                 status(t('error'));
             } finally {
@@ -174,6 +225,7 @@ export function createFlasher(deps) {
         try {
             port = portForAction();
         } catch (e) {
+            logLine(t('error') + ': ' + e.message, 'bad');
             toast(t('error') + ': ' + e.message, 8000);
             return;
         }
@@ -191,18 +243,38 @@ export function createFlasher(deps) {
     const doUpdate = busyGuard(async (portPromise, force) => {
         if (!state.firmware) {
             toast(t('flPickFirmware'));
+            logLine(t('flPickFirmware'), 'bad');
             return;
         }
+        const firmware = state.firmware;
+        logLine(`—— ${t(force ? 'flInstallAll' : 'flUpdate')}: ${firmware.name} · ` +
+            `${(firmware.size / 1024).toFixed(0)} KB · ${firmware.image.length / 4096} × 4 KB`);
+        const info = radioInfoText();
+        if (info) {
+            logLine(info);
+        }
         const updater = new Updater(await portPromise);
+        const started = Date.now();
         try {
             status(t('flUpdating'));
+            logLine(t('flUpdating') + ' …');
             await updater.open();
-            const written = await updater.writeImage(state.firmware.image, (done, total) => {
+            logLine(`cable: ${updater.s.baud} baud`);
+            let lastStep = -1;
+            const written = await updater.writeImage(firmware.image, (done, total) => {
                 status(`${t('flUpdating')} ${done} / ${total}`);
                 progress(done, total);
+                const step = Math.floor((done * 20) / total); // a line each 5 %
+                if (step !== lastStep) {
+                    lastStep = step;
+                    logLine(`${t('flUpdating')} ${done}/${total} (${Math.round((100 * done) / total)} %)`);
+                }
             }, force);
+            logLine(`cable: ${updater.s.baud} baud`);
             disconnect?.();
+            const seconds = Math.round((Date.now() - started) / 1000);
             status(`${t('flUpdateDone')} (${written} × 4 KB)`);
+            logLine(`${t('flUpdateDone')}: ${written} × 4 KB · ${seconds} s`, 'ok');
             toast(t('flUpdateDone'), 6000);
         } finally {
             await updater.close().catch(() => {});
@@ -216,30 +288,54 @@ export function createFlasher(deps) {
         if (!link?.connected) {
             throw new Error(t('flConnectFirst'));
         }
+        logLine(`—— ${t('flBackupCodeplug')}`);
+        const info = radioInfoText();
+        if (info) {
+            logLine(info);
+        }
         const img = new Uint8Array(L.IMAGE_SIZE).fill(0xFF);
         const total = L.REGIONS.reduce((n, r) => n + (r.end - r.start), 0);
         let done = 0;
+        let lastStep = -1;
         status(t('reading'));
         for (const r of L.REGIONS) {
             await link.readRegion(img, r.start, r.end, progress, done, total);
             done += r.end - r.start;
+            const step = Math.floor((done * 10) / total);
+            if (step !== lastStep) {
+                lastStep = step;
+                logLine(`${t('flReading')} ${Math.round((100 * done) / total)} %`);
+            }
         }
-        download(`${radioName()}-codeplug.bin`, img);
+        const name = `${radioName()}-codeplug.bin`;
+        download(name, img);
         status(t('flBackupDone'));
+        logLine(`${t('flBackupDone')}: ${name} · ${(img.length / 1024).toFixed(0)} KB`, 'ok');
         toast(t('flBackupDone'), 5000);
     });
 
     async function bootloaderBackup(portPromise, chip, name) {
         const boot = new Bootloader(await portPromise);
+        const started = Date.now();
         try {
             await boot.open();
             status(t('flSwitchOffOn'));
+            logLine(t('flSwitchOffOn'));
+            let lastStep = -1;
             const result = await boot.dump(chip, (done, total) => {
                 status(`${t('flReading')} ${done} / ${total} (${Math.round(100 * done / total)}%)`);
                 progress(done, total);
+                const step = Math.floor((done * 20) / total);
+                if (step !== lastStep) {
+                    lastStep = step;
+                    logLine(`${t('flReading')} ${done}/${total} (${Math.round((100 * done) / total)} %)`);
+                }
             }, null, () => status(t('flSwitchOffOn')));
             download(name, result.data);
+            const seconds = Math.round((Date.now() - started) / 1000);
             status(t('flBackupDone'));
+            logLine(`${t('flBackupDone')}: ${name} · ${(result.size / 1024).toFixed(0)} KB · ` +
+                `JEDEC ${Array.from(result.id).map((b) => b.toString(16)).join(' ')} · ${seconds} s`, 'ok');
             toast(t('flBackupDone'), 5000);
         } finally {
             await boot.close().catch(() => {});
@@ -247,18 +343,24 @@ export function createFlasher(deps) {
     }
 
     const doProgram = busyGuard(async (portPromise) => {
+        logLine(`—— ${t('flBackupProgram')}`);
         await bootloaderBackup(portPromise, CHIP_PROGRAM, `${radioName()}-programa.bin`);
     });
 
     const doData = busyGuard(async (portPromise) => {
+        logLine(`—— ${t('flBackupData')}`);
         await bootloaderBackup(portPromise, CHIP_DATA, `${radioName()}-datos-25q128.bin`);
     });
 
     const doRestore = busyGuard(async (portPromise, file, chip, expect) => {
+        logLine(`—— ${expect === 'image' ? t('flInstallStock') : chip === CHIP_DATA
+            ? t('flFactoryData') : t('flFactoryProgram')}: ${file.name}`);
         const boot = new Bootloader(await portPromise);
+        const started = Date.now();
         try {
             await boot.open();
             status(t('flSwitchOffOn'));
+            logLine(t('flSwitchOffOn'));
             await boot.prepare(() => status(t('flSwitchOffOn')));
             const data = new Uint8Array(await file.arrayBuffer());
             if (!data.length || (data.length % 4096)) {
@@ -271,14 +373,25 @@ export function createFlasher(deps) {
                 throw new Error(t('flWrongFileFactory'));
             }
             const offset = (chip === CHIP_PROGRAM && data.length !== PROGRAM_SIZE) ? FIRMWARE_BASE : 0;
+            logLine(`${file.name} · ${(data.length / 1024).toFixed(0)} KB · ` +
+                `${chip === CHIP_PROGRAM ? t('flBackupProgram') : t('flBackupData')} · ` +
+                `0x${offset.toString(16)}`);
+            let lastStep = -1;
             const written = await boot.restore(chip, data, {
                 offset,
                 onBlock: (done, total) => {
                     status(`${t('flWriting')} ${done} / ${total}`);
                     progress(done, total);
+                    const step = Math.floor((done * 20) / total);
+                    if (step !== lastStep) {
+                        lastStep = step;
+                        logLine(`${t('flWriting')} ${done}/${total} (${Math.round((100 * done) / total)} %)`);
+                    }
                 },
             });
+            const seconds = Math.round((Date.now() - started) / 1000);
             status(`${t('flRestoreDone')} (${written})`);
+            logLine(`${t('flRestoreDone')}: ${written} · ${seconds} s`, 'ok');
             toast(t('flRestoreDone'), 6000);
         } finally {
             await boot.close().catch(() => {});
@@ -298,9 +411,11 @@ export function createFlasher(deps) {
             try {
                 await pickFirmware(file);
                 state.fromPackage = false;
+                logLine(`${t('flUseOther')} ${state.firmware.name} · ${(state.firmware.size / 1024).toFixed(0)} KB`);
                 toast(`${state.firmware.name}: ${(state.firmware.size / 1024).toFixed(0)} KB`, 4000);
                 rerender();
             } catch (e) {
+                logLine(t('error') + ': ' + e.message, 'bad');
                 toast(t('error') + ': ' + e.message, 8000);
             }
         });
@@ -329,41 +444,18 @@ export function createFlasher(deps) {
                 if (found) {
                     state.firmware = found;
                     state.fromPackage = true;
+                    logLine(`${t('flFirmwareIncluded')}: ${found.name} · ${(found.size / 1024).toFixed(0)} KB`);
                     rerender();
                 }
             });
         }
 
-        // the radio-side program: the file in assets/ when the page is served from a folder, the embedded copy from disk
-        if (!state.assetSource && !state.assetLoading) {
-            state.assetLoading = true;
-            updaterImage().then(() => {
-                state.assetLoading = false;
-                state.assetSource = sources['assets/updater.bin'] ?? null;
-                rerender();
-            }).catch(() => {
-                state.assetLoading = false;
-            });
+        if (!state.log.length) {
+            logLine(t('flLogEmpty'));
         }
 
         main.append(pageHead(t('flasher')),
             el('div', {class: 'general-cards'},
-                card(t('flUpdateCard'), t('flUpdateIntro'),
-                    el('div', {class: 'id-sources'},
-                        el('button', {class: 'primary', disabled: !state.firmware,
-                            onclick: () => withPort((p) => doUpdate(p, false))}, icon('upload'), t('flUpdate')),
-                        el('button', {disabled: !state.firmware, onclick: () => withPort((p) => doUpdate(p, true))},
-                            icon('upload'), t('flInstallAll')),
-                        el('button', {class: 'ghost', onclick: () => fwInput.click()}, icon('open'), t('flUseOther'))),
-                    el('p', {class: 'muted'}, state.firmware
-                        ? (state.fromPackage ? `${t('flFirmwareIncluded')}: ` : '') +
-                          `${state.firmware.name} · ${(state.firmware.size / 1024).toFixed(0)} KB`
-                        : t('flNoFirmware')),
-                    state.fromPackage ? el('p', {class: 'muted id-hint'}, t('flFirmwareIncludedHint')) : null,
-                    el('p', {class: 'muted id-hint'}, t('flUpdateHint')),
-                    el('p', {class: 'muted id-hint'}, t('flFirmwareInFolder')),
-                    state.assetSource ? el('p', {class: 'muted id-hint'},
-                        t(state.assetSource === 'assets' ? 'flProgramsFiles' : 'flProgramsEmbedded')) : null),
                 card(t('flBackupCard'), t('flBackupIntro'),
                     el('div', {class: 'id-sources'},
                         el('button', {onclick: doCodeplug}, icon('download'), t('flBackupCodeplug')),
@@ -374,12 +466,29 @@ export function createFlasher(deps) {
                         el('dt', {}, t('flBackupCodeplug')), el('dd', {}, t('flBackupCodeplugWhat')),
                         el('dt', {}, t('flBackupProgram')), el('dd', {}, t('flBackupProgramWhat')),
                         el('dt', {}, t('flBackupData')), el('dd', {}, t('flBackupDataWhat')))),
-                card(t('flBootCard'), t('flBootIntro'),
+                card(t('flUpdateCard'), t('flUpdateIntro'),
                     el('div', {class: 'id-sources'},
+                        el('button', {class: 'primary', disabled: !state.firmware,
+                            onclick: () => withPort((p) => doUpdate(p, false))}, icon('upload'), t('flUpdate')),
+                        el('button', {disabled: !state.firmware, onclick: () => withPort((p) => doUpdate(p, true))},
+                            icon('upload'), t('flInstallAll')),
                         el('button', {onclick: () => {
                             progExpect = 'image';
                             progInput.click();
                         }}, icon('upload'), t('flInstallStock')),
+                        el('button', {class: 'ghost', onclick: () => fwInput.click()}, icon('open'), t('flUseOther'))),
+                    el('p', {class: 'muted'}, state.firmware
+                        ? (state.fromPackage ? `${t('flFirmwareIncluded')}: ` : '') +
+                          `${state.firmware.name} · ${(state.firmware.size / 1024).toFixed(0)} KB`
+                        : t('flNoFirmware')),
+                    state.fromPackage ? el('p', {class: 'muted id-hint'}, t('flFirmwareIncludedHint')) : null,
+                    el('p', {class: 'muted id-hint'}, t('flUpdateHint')),
+                    el('p', {class: 'muted id-hint'}, t('flStep2StockHint')),
+                    el('p', {class: 'muted id-hint'}, t('flFirmwareInFolder'), ' ',
+                        el('a', {href: 'https://github.com/va3bpf/OpenDMR/releases', target: '_blank',
+                            rel: 'noopener'}, t('flFirmwareLink')))),
+                card(t('flBootCard'), t('flBootIntro'),
+                    el('div', {class: 'id-sources'},
                         el('button', {onclick: () => {
                             progExpect = 'backup';
                             progInput.click();
@@ -387,19 +496,17 @@ export function createFlasher(deps) {
                         el('button', {onclick: () => dataInput.click()}, icon('upload'), t('flFactoryData'))),
                     el('p', {class: 'muted id-hint'}, t('flFactoryFile')),
                     el('p', {class: 'muted id-hint'}, t('flFactoryHint'))),
-                card(t('flProgramsCard'), t('flProgramsIntro'),
+                card(t('flLogCard'), t('flLogIntro'),
                     el('div', {class: 'id-sources'},
-                        el('button', {onclick: () => downloadBin('updater.bin', updaterImage)}, icon('download'),
-                            `updater.bin · ${t('flDownload')}`),
-                        el('button', {onclick: () => downloadBin('dumper.bin', dumperImage)}, icon('download'),
-                            `dumper.bin · ${t('flDownload')}`)),
-                    el('p', {class: 'muted'}, state.assetSource === 'assets'
-                        ? t('flProgramsFiles') : state.assetSource === 'embedded' ? t('flProgramsEmbedded') : ''),
-                    el('p', {class: 'muted'},
-                        el('a', {href: 'https://github.com/va3bpf/OpenDMR/releases', target: '_blank', rel: 'noopener'},
-                            t('flFirmwareLink'))),
-                    el('p', {class: 'muted id-hint'}, t('flFirmwareLinkHint')),
-                    el('p', {class: 'muted id-hint'}, t('flProgramsHint'))),
+                        el('button', {onclick: logCopy}, icon('copy'), t('flLogCopy')),
+                        el('button', {onclick: logSave}, icon('save'), t('flLogSave')),
+                        el('button', {class: 'ghost', onclick: () => {
+                            state.log = [];
+                            state.logBox = null;
+                            rerender();
+                        }}, icon('trash'), t('flLogClear'))),
+                    (state.logBox = el('div', {class: 'fl-log', role: 'log', 'aria-live': 'polite'},
+                        state.log.map(logRow)))),
                 card(t('flNotesCard'),
                     el('ul', {class: 'fl-notes'},
                         el('li', {}, t('flNote1')),
@@ -407,6 +514,9 @@ export function createFlasher(deps) {
                         el('li', {}, t('flNote3')),
                         el('li', {}, t('flNote4'))))),
             fwInput, progInput, dataInput);
+
+        // the log, at its end
+        state.logBox.scrollTop = state.logBox.scrollHeight;
     }
 
     return {view};

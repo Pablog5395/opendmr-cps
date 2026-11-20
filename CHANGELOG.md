@@ -14,6 +14,9 @@
   (every sector of the firmware area) and **Bootloader** (radio off, then on): install OpenDMR on a stock radio
   (`opendmr.bin`, written from 0xC000) and back to factory (the radio's own program flash backup, and the data flash
   one if wanted). The factory buttons check they get the right file.
+- The page in three steps, in order: **1 make the backups**, **2 install or update** (with the radio-side programs
+  no longer offered for download: they are inside the page) and **3 back to the stock firmware**; plus a **Log** card
+  with the time of every step (could not copy: save it to a file).
 - With nothing to look for: the package's page carries the firmware (`window.__OPENDMR_FIRMWARE`, put there by
   `tools/web/make_package.py`), and a page served from a folder reads `firmware/index.json`, so "Update" and
   "Install / rewrite all" work without a file picker; "Use another file…" stays for another version. The firmware
